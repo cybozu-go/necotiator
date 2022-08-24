@@ -1,0 +1,24 @@
+# permissions for end users to edit tenantresourcequota.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: tenantresourcequota-editor-role
+rules:
+- apiGroups:
+  - necotiator.cybozu.io
+  resources:
+  - tenantresourcequota
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - necotiator.cybozu.io
+  resources:
+  - tenantresourcequota/status
+  verbs:
+  - get

@@ -1,0 +1,6 @@
+apiVersion: necotiator.cybozu.io/v1beta1
+kind: TenantResourceQuota
+metadata:
+  name: tenantresourcequota-sample
+spec:
+  # TODO(user): Add fields here
