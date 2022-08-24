@@ -6,6 +6,32 @@ metadata:
   name: manager-role
 rules:
 - apiGroups:
+  - ""
+  resources:
+  - resourcequota
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - resourcequota/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - ""
+  resources:
+  - resourcequota/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
   - necotiator.cybozu.io
   resources:
   - tenantresourcequota
