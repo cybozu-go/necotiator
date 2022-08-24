@@ -1,0 +1,6 @@
+domain: cybozu.io
+layout:
+- go.kubebuilder.io/v3
+projectName: necotiator 
+repo: github.com/cybozu-go/necotiator
+version: "3"
