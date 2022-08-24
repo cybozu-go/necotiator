@@ -1,0 +1,16 @@
+domain: cybozu.io
+layout:
+- go.kubebuilder.io/v3
+projectName: necotiator
+repo: github.com/cybozu-go/necotiator
+resources:
+- api:
+    crdVersion: v1
+    namespaced: true
+  controller: true
+  domain: cybozu.io
+  group: necotiator
+  kind: TenantResourceQuota
+  path: github.com/cybozu-go/necotiator/api/v1beta1
+  version: v1beta1
+version: "3"
