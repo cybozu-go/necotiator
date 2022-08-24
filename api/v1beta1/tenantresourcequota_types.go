@@ -60,6 +60,7 @@ type TenantResourceQuotaStatus struct {
 
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
+//+kubebuilder:resource:scope=Cluster
 
 // TenantResourceQuota is the Schema for the tenantresourcequota API
 type TenantResourceQuota struct {
