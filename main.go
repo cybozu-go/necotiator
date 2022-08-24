@@ -33,6 +33,7 @@ import (
 
 	necotiatorv1beta1 "github.com/cybozu-go/necotiator/api/v1beta1"
 	"github.com/cybozu-go/necotiator/controllers"
+	"github.com/cybozu-go/necotiator/hooks"
 	//+kubebuilder:scaffold:imports
 )
 
@@ -96,7 +97,7 @@ func main() {
 		setupLog.Error(err, "unable to create controller", "controller", "TenantResourceQuota")
 		os.Exit(1)
 	}
-	if err = (&corev1.ResourceQuota{}).SetupWebhookWithManager(mgr); err != nil {
+	if err = hooks.SetupWebhookWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create webhook", "webhook", "ResourceQuota")
 		os.Exit(1)
 	}

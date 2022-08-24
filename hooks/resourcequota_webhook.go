@@ -17,6 +17,8 @@ limitations under the License.
 package hooks
 
 import (
+	"context"
+
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -43,7 +45,7 @@ func SetupWebhookWithManager(mgr ctrl.Manager) error {
 var _ admission.CustomValidator = &resourceQuotaValidator{}
 
 // ValidateCreate implements webhook.Validator so a webhook will be registered for the type
-func (r *resourceQuotaValidator) ValidateCreate() error {
+func (r *resourceQuotaValidator) ValidateCreate(ctx context.Context, obj runtime.Object) error {
 	resourcequotalog.Info("validate create")
 
 	// TODO(user): fill in your validation logic upon object creation.
@@ -51,7 +53,7 @@ func (r *resourceQuotaValidator) ValidateCreate() error {
 }
 
 // ValidateUpdate implements webhook.Validator so a webhook will be registered for the type
-func (r *resourceQuotaValidator) ValidateUpdate(old runtime.Object) error {
+func (r *resourceQuotaValidator) ValidateUpdate(ctx context.Context, oldObj, newObj runtime.Object) error {
 	resourcequotalog.Info("validate update")
 
 	// TODO(user): fill in your validation logic upon object update.
@@ -59,8 +61,8 @@ func (r *resourceQuotaValidator) ValidateUpdate(old runtime.Object) error {
 }
 
 // ValidateDelete implements webhook.Validator so a webhook will be registered for the type
-func (r *resourceQuotaValidator) ValidateDelete() error {
-	resourcequotalog.Info("validate delete", "name", r.Name)
+func (r *resourceQuotaValidator) ValidateDelete(ctx context.Context, obj runtime.Object) error {
+	resourcequotalog.Info("validate delete")
 
 	// TODO(user): fill in your validation logic upon object deletion.
 	return nil
