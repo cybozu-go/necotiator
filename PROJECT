@@ -13,13 +13,4 @@ resources:
   kind: TenantResourceQuota
   path: github.com/cybozu-go/necotiator/api/v1beta1
   version: v1beta1
-- controller: true
-  group: core
-  kind: ResourceQuota
-  path: k8s.io/api/core/v1
-  version: v1
-  webhooks:
-    defaulting: true
-    validation: true
-    webhookVersion: v1
 version: "3"

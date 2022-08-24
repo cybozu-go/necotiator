@@ -40,7 +40,7 @@ func SetupWebhookWithManager(mgr ctrl.Manager) error {
 }
 
 // TODO(user): change verbs to "verbs=create;update;delete" if you want to enable deletion validation.
-//+kubebuilder:webhook:path=/validate-core-v1-resourcequota,mutating=false,failurePolicy=fail,sideEffects=None,groups=core,resources=resourcequota,verbs=create;update,versions=v1,name=vresourcequota.kb.io,admissionReviewVersions=v1
+//+kubebuilder:webhook:path=/validate--v1-resourcequota,mutating=false,failurePolicy=fail,sideEffects=None,groups=core,resources=resourcequotas,verbs=create;update,versions=v1,name=vresourcequota.kb.io,admissionReviewVersions=v1
 
 var _ admission.CustomValidator = &resourceQuotaValidator{}
 
