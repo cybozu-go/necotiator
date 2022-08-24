@@ -17,6 +17,8 @@ limitations under the License.
 package v1beta1
 
 import (
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -25,17 +27,35 @@ import (
 
 // TenantResourceQuotaSpec defines the desired state of TenantResourceQuota
 type TenantResourceQuotaSpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	// Hard is the set of desired hard limits for each tenant.
+	// +optional
+	Hard corev1.ResourceList `json:"hard,omitempty"`
 
-	// Foo is an example field of TenantResourceQuota. Edit tenantresourcequota_types.go to remove/update
-	Foo string `json:"foo,omitempty"`
+	// NamespaceSelector is used to select namespaces by label.
+	// +optional
+	NamespaceSelector *metav1.LabelSelector `json:"namespaceSelector,omitempty"`
+}
+
+// ResourceUsage is aggregated usages of the resource.
+type ResourceUsage struct {
+	// Total is total observed usage of the resource.
+	// +optional
+	Total resource.Quantity `json:"total,omitempty"`
+
+	// Namespaces is observed usage of the resource per namespace.
+	// +optional
+	Namespaces map[string]resource.Quantity `json:"namespaces,omitempty"`
 }
 
 // TenantResourceQuotaStatus defines the observed state of TenantResourceQuota
 type TenantResourceQuotaStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	// Allocated is the current observed allocated resources to namespaces in the tenant.
+	// +optional
+	Allocated map[corev1.ResourceName]ResourceUsage `json:"allocated,omitempty"`
+
+	// Used is the current observed usage of the resource in the tenant.
+	// +optional
+	Used map[corev1.ResourceName]ResourceUsage `json:"used,omitempty"`
 }
 
 //+kubebuilder:object:root=true
