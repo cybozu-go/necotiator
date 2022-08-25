@@ -1,0 +1,11 @@
+apiVersion: ctlptl.dev/v1alpha1
+kind: Registry
+name: necotiator-registry
+port: 5151
+---
+apiVersion: ctlptl.dev/v1alpha1
+kind: Cluster
+name: kind-necotiator-dev
+product: kind
+kubernetesVersion: v1.24.0
+registry: necotiator-registry
