@@ -45,6 +45,7 @@ type TenantResourceQuotaReconciler struct {
 //+kubebuilder:rbac:groups=necotiator.cybozu.io,resources=tenantresourcequotas,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=necotiator.cybozu.io,resources=tenantresourcequotas/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=necotiator.cybozu.io,resources=tenantresourcequotas/finalizers,verbs=update
+//+kubebuilder:rbac:groups="",resources=resourcequotas,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups="",resources=namespaces,verbs=get;list;watch
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
@@ -79,6 +80,14 @@ func (r *TenantResourceQuotaReconciler) Reconcile(ctx context.Context, req ctrl.
 		return ctrl.Result{}, err
 	}
 
+	for _, ns := range namespaces.Items {
+		err := r.reconcileResourceQuota(ctx, &quota, &ns)
+		if err != nil {
+			return ctrl.Result{}, err
+		}
+		logger.Info("Reconciled", "namespace", ns.GetName())
+	}
+
 	logger.Info("Reconciling", "namespaces", namespaces)
 
 	return ctrl.Result{}, nil
@@ -89,6 +98,10 @@ func (r *TenantResourceQuotaReconciler) reconcileResourceQuota(ctx context.Conte
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: ns.GetName(),
 			Name:      tenantQuota.GetName(),
+			Labels: map[string]string{
+				"app.kubernetes.io/created-by": "necotiator",
+				"necotiator.cybozu.io/tenant":  tenantQuota.GetName(),
+			},
 		},
 		Spec: corev1.ResourceQuotaSpec{
 			Hard: make(corev1.ResourceList, len(tenantQuota.Spec.Hard)),
