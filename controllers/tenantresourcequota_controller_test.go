@@ -2,6 +2,8 @@ package controllers
 
 import (
 	"context"
+	"fmt"
+	"sync"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -15,6 +17,18 @@ import (
 
 	necotiatorv1beta1 "github.com/cybozu-go/necotiator/api/v1beta1"
 )
+
+var (
+	m           sync.Mutex
+	testCounter int32
+)
+
+func newTestObjectName() string {
+	m.Lock()
+	defer m.Unlock()
+	testCounter += 1
+	return fmt.Sprintf("test-%d", testCounter)
+}
 
 var _ = Describe("Test TenantResourceQuotaController", func() {
 	ctx := context.Background()
@@ -52,9 +66,11 @@ var _ = Describe("Test TenantResourceQuotaController", func() {
 	})
 
 	It("should create resource quota", func() {
+		tenantResourceQuotaName := newTestObjectName()
+		teamName := newTestObjectName()
 		tenantResourceQuota := &necotiatorv1beta1.TenantResourceQuota{
 			ObjectMeta: metav1.ObjectMeta{
-				Name: "test",
+				Name: tenantResourceQuotaName,
 			},
 			Spec: necotiatorv1beta1.TenantResourceQuotaSpec{
 				Hard: v1.ResourceList{
@@ -62,7 +78,7 @@ var _ = Describe("Test TenantResourceQuotaController", func() {
 				},
 				NamespaceSelector: &metav1.LabelSelector{
 					MatchLabels: map[string]string{
-						"team": "test",
+						"team": teamName,
 					},
 				},
 			},
@@ -70,11 +86,12 @@ var _ = Describe("Test TenantResourceQuotaController", func() {
 		err := k8sClient.Create(ctx, tenantResourceQuota)
 		Expect(err).ShouldNot(HaveOccurred())
 
+		name := newTestObjectName()
 		namespace := &corev1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
-				Name: "test",
+				Name: name,
 				Labels: map[string]string{
-					"team": "test",
+					"team": teamName,
 				},
 			},
 		}
@@ -83,13 +100,60 @@ var _ = Describe("Test TenantResourceQuotaController", func() {
 
 		Eventually(func(g Gomega) {
 			var quota corev1.ResourceQuota
-			err = k8sClient.Get(ctx, client.ObjectKey{Namespace: "test", Name: "test"}, &quota)
+			err = k8sClient.Get(ctx, client.ObjectKey{Namespace: name, Name: "default"}, &quota)
 			g.Expect(err).ShouldNot(HaveOccurred())
 
 			g.Expect(quota.Labels).Should(HaveKeyWithValue("app.kubernetes.io/created-by", "necotiator"))
-			g.Expect(quota.Labels).Should(HaveKeyWithValue("necotiator.cybozu.io/tenant", "test"))
+			g.Expect(quota.Labels).Should(HaveKeyWithValue("necotiator.cybozu.io/tenant", tenantResourceQuotaName))
 			g.Expect(quota.Spec.Hard["limits.cpu"]).Should(SemanticEqual(resource.MustParse("0")))
 			g.Expect(quota.Spec.Hard).ShouldNot(HaveKey(BeEquivalentTo("limits.memory")))
 		}).Should(Succeed())
 	})
+
+	It("should create namespace before tenant resource", func() {
+		namespaceName := newTestObjectName()
+		teamName := newTestObjectName()
+		namespace := &corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: namespaceName,
+				Labels: map[string]string{
+					"team": teamName,
+				},
+			},
+		}
+		err := k8sClient.Create(ctx, namespace)
+		Expect(err).ShouldNot(HaveOccurred())
+
+		tenantResourceQuotaName := newTestObjectName()
+		tenantResourceQuota := &necotiatorv1beta1.TenantResourceQuota{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: tenantResourceQuotaName,
+			},
+			Spec: necotiatorv1beta1.TenantResourceQuotaSpec{
+				Hard: v1.ResourceList{
+					"limits.cpu": resource.MustParse("100m"),
+				},
+				NamespaceSelector: &metav1.LabelSelector{
+					MatchLabels: map[string]string{
+						"team": teamName,
+					},
+				},
+			},
+		}
+		err = k8sClient.Create(ctx, tenantResourceQuota)
+		Expect(err).ShouldNot(HaveOccurred())
+
+		Eventually(func(g Gomega) {
+			var quota corev1.ResourceQuota
+			err = k8sClient.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: "default"}, &quota)
+			g.Expect(err).ShouldNot(HaveOccurred())
+
+			g.Expect(quota.Labels).Should(HaveKeyWithValue("app.kubernetes.io/created-by", "necotiator"))
+			g.Expect(quota.Labels).Should(HaveKeyWithValue("necotiator.cybozu.io/tenant", tenantResourceQuotaName))
+			g.Expect(quota.Spec.Hard["limits.cpu"]).Should(SemanticEqual(resource.MustParse("0")))
+			g.Expect(quota.Spec.Hard).ShouldNot(HaveKey(BeEquivalentTo("limits.memory")))
+		}).Should(Succeed())
+
+	})
+
 })

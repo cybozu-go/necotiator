@@ -97,7 +97,7 @@ func (r *TenantResourceQuotaReconciler) reconcileResourceQuota(ctx context.Conte
 	quota := corev1.ResourceQuota{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: ns.GetName(),
-			Name:      tenantQuota.GetName(),
+			Name:      "default",
 			Labels: map[string]string{
 				"app.kubernetes.io/created-by": "necotiator",
 				"necotiator.cybozu.io/tenant":  tenantQuota.GetName(),
