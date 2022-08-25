@@ -3,6 +3,7 @@ module github.com/cybozu-go/necotiator
 go 1.18
 
 require (
+	github.com/google/go-cmp v0.5.5
 	github.com/onsi/ginkgo/v2 v2.0.0
 	github.com/onsi/gomega v1.18.1
 	k8s.io/api v0.24.2
@@ -37,7 +38,6 @@ require (
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
 	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/google/gnostic v0.5.7-v3refs // indirect
-	github.com/google/go-cmp v0.5.5 // indirect
 	github.com/google/gofuzz v1.1.0 // indirect
 	github.com/google/uuid v1.1.2 // indirect
 	github.com/imdario/mergo v0.3.12 // indirect
