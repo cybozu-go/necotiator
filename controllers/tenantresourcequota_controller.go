@@ -21,10 +21,15 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	necotiatorv1beta1 "github.com/cybozu-go/necotiator/api/v1beta1"
 )
@@ -78,8 +83,35 @@ func (r *TenantResourceQuotaReconciler) Reconcile(ctx context.Context, req ctrl.
 }
 
 // SetupWithManager sets up the controller with the Manager.
-func (r *TenantResourceQuotaReconciler) SetupWithManager(mgr ctrl.Manager) error {
+func (r *TenantResourceQuotaReconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manager) error {
+	logger := log.FromContext(ctx)
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&necotiatorv1beta1.TenantResourceQuota{}).
+		Watches(&source.Kind{Type: &corev1.Namespace{}}, handler.EnqueueRequestsFromMapFunc(func(o client.Object) []reconcile.Request {
+			var quotas necotiatorv1beta1.TenantResourceQuotaList
+			err := mgr.GetClient().List(ctx, &quotas)
+			if err != nil {
+				logger.Error(err, "watch namespace")
+				return nil
+			}
+
+			var reqs []reconcile.Request
+			for _, quota := range quotas.Items {
+				selector, err := metav1.LabelSelectorAsSelector(quota.Spec.NamespaceSelector)
+				if err != nil {
+					logger.Error(err, "parsing tenant resource quota selector")
+					continue
+				}
+				if selector.Matches(labels.Set(o.GetLabels())) {
+					reqs = append(reqs, reconcile.Request{
+						NamespacedName: types.NamespacedName{
+							Name: quota.GetName(),
+						},
+					})
+				}
+			}
+
+			return reqs
+		})).
 		Complete(r)
 }
