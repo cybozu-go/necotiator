@@ -20,6 +20,8 @@ import (
 	"context"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -80,6 +82,30 @@ func (r *TenantResourceQuotaReconciler) Reconcile(ctx context.Context, req ctrl.
 	logger.Info("Reconciling", "namespaces", namespaces)
 
 	return ctrl.Result{}, nil
+}
+
+func (r *TenantResourceQuotaReconciler) reconcileResourceQuota(ctx context.Context, tenantQuota *necotiatorv1beta1.TenantResourceQuota, ns *corev1.Namespace) error {
+	quota := corev1.ResourceQuota{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: ns.GetName(),
+			Name:      tenantQuota.GetName(),
+		},
+		Spec: corev1.ResourceQuotaSpec{
+			Hard: make(corev1.ResourceList, len(tenantQuota.Spec.Hard)),
+		},
+	}
+	for res := range tenantQuota.Spec.Hard {
+		quota.Spec.Hard[res] = resource.MustParse("0")
+	}
+
+	err := r.Create(ctx, &quota)
+	if errors.IsAlreadyExists(err) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 // SetupWithManager sets up the controller with the Manager.
