@@ -89,7 +89,7 @@ func (r *TenantResourceQuotaReconciler) Reconcile(ctx context.Context, req ctrl.
 		logger.Info("Reconciled", "namespace", ns.GetName())
 	}
 
-	err = r.sumResourceUsage(ctx, &quota, &namespaces)
+	err = r.updateStatus(ctx, &quota, &namespaces)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
@@ -99,7 +99,7 @@ func (r *TenantResourceQuotaReconciler) Reconcile(ctx context.Context, req ctrl.
 	return ctrl.Result{}, nil
 }
 
-func (r *TenantResourceQuotaReconciler) sumResourceUsage(ctx context.Context, tenantQuota *necotiatorv1beta1.TenantResourceQuota, namespaceList *corev1.NamespaceList) error {
+func (r *TenantResourceQuotaReconciler) updateStatus(ctx context.Context, tenantQuota *necotiatorv1beta1.TenantResourceQuota, namespaceList *corev1.NamespaceList) error {
 	allocated := make(map[corev1.ResourceName]necotiatorv1beta1.ResourceUsage)
 	used := make(map[corev1.ResourceName]necotiatorv1beta1.ResourceUsage)
 
