@@ -123,6 +123,80 @@ var _ = Describe("Test TenantResourceQuotaController", func() {
 		}).Should(Succeed())
 	})
 
+	It("should update TenantResourceQuota status", func() {
+		tenantResourceQuotaName := newTestObjectName()
+		teamName := newTestObjectName()
+		tenantResourceQuota := newTenantResourceQuota(tenantResourceQuotaName, teamName)
+		err := k8sClient.Create(ctx, tenantResourceQuota)
+		Expect(err).ShouldNot(HaveOccurred())
+
+		name := newTestObjectName()
+		namespace := newNamespace(name, teamName)
+		err = k8sClient.Create(ctx, namespace)
+		Expect(err).ShouldNot(HaveOccurred())
+
+		name2 := newTestObjectName()
+		namespace2 := newNamespace(name2, teamName)
+		err = k8sClient.Create(ctx, namespace2)
+		Expect(err).ShouldNot(HaveOccurred())
+
+		Eventually(func(g Gomega) {
+			var quota corev1.ResourceQuota
+			err = k8sClient.Get(ctx, client.ObjectKey{Namespace: name, Name: "default"}, &quota)
+			g.Expect(err).ShouldNot(HaveOccurred())
+			err = k8sClient.Get(ctx, client.ObjectKey{Namespace: name2, Name: "default"}, &quota)
+			g.Expect(err).ShouldNot(HaveOccurred())
+		}).Should(Succeed())
+
+		var quota corev1.ResourceQuota
+		err = k8sClient.Get(ctx, client.ObjectKey{Namespace: name, Name: "default"}, &quota)
+		Expect(err).ShouldNot(HaveOccurred())
+		quota.Status.Hard = corev1.ResourceList{
+			"limits.cpu": resource.MustParse("0"),
+		}
+		quota.Status.Used = corev1.ResourceList{
+			"limits.cpu": resource.MustParse("1"),
+		}
+		err = k8sClient.Status().Update(ctx, &quota)
+		Expect(err).ShouldNot(HaveOccurred())
+
+		err = k8sClient.Get(ctx, client.ObjectKey{Namespace: name2, Name: "default"}, &quota)
+		Expect(err).ShouldNot(HaveOccurred())
+		quota.Status.Hard = corev1.ResourceList{
+			"limits.cpu": resource.MustParse("0"),
+		}
+		quota.Status.Used = corev1.ResourceList{
+			"limits.cpu": resource.MustParse("100m"),
+		}
+		err = k8sClient.Status().Update(ctx, &quota)
+		Expect(err).ShouldNot(HaveOccurred())
+
+		Eventually(func(g Gomega) {
+			var tenantResourceQuota necotiatorv1beta1.TenantResourceQuota
+			err = k8sClient.Get(ctx, client.ObjectKey{Name: tenantResourceQuotaName}, &tenantResourceQuota)
+			g.Expect(err).ShouldNot(HaveOccurred())
+
+			g.Expect(tenantResourceQuota.Status.Allocated).Should(MatchAllKeys(Keys{
+				corev1.ResourceName("limits.cpu"): MatchAllFields(Fields{
+					"Total": SemanticEqual(resource.MustParse("0")),
+					"Namespaces": MatchAllKeys(Keys{
+						name:  SemanticEqual(resource.MustParse("0")),
+						name2: SemanticEqual(resource.MustParse("0")),
+					}),
+				}),
+			}))
+			g.Expect(tenantResourceQuota.Status.Used).Should(MatchAllKeys(Keys{
+				corev1.ResourceName("limits.cpu"): MatchAllFields(Fields{
+					"Total": SemanticEqual(resource.MustParse("1100m")),
+					"Namespaces": MatchAllKeys(Keys{
+						name:  SemanticEqual(resource.MustParse("1")),
+						name2: SemanticEqual(resource.MustParse("100m")),
+					}),
+				}),
+			}))
+		}).Should(Succeed())
+	})
+
 	It("should create namespace before tenant resource", func() {
 		namespaceName := newTestObjectName()
 		teamName := newTestObjectName()
