@@ -88,9 +88,48 @@ func (r *TenantResourceQuotaReconciler) Reconcile(ctx context.Context, req ctrl.
 		logger.Info("Reconciled", "namespace", ns.GetName())
 	}
 
+	err = r.sumResourceUsage(ctx, &quota, &namespaces)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+
 	logger.Info("Reconciling", "namespaces", namespaces)
 
 	return ctrl.Result{}, nil
+}
+
+func (r *TenantResourceQuotaReconciler) sumResourceUsage(ctx context.Context, tenantQuota *necotiatorv1beta1.TenantResourceQuota, namespaceList *corev1.NamespaceList) error {
+	allocated := make(map[corev1.ResourceName]necotiatorv1beta1.ResourceUsage)
+	used := make(map[corev1.ResourceName]necotiatorv1beta1.ResourceUsage)
+
+	for _, namespace := range namespaceList.Items {
+		var quota corev1.ResourceQuota
+		err := r.Get(ctx, client.ObjectKey{Namespace: namespace.Name, Name: "default"}, &quota)
+		if err != nil {
+			return err
+		}
+
+		addResourceUsage(allocated, quota.Status.Hard, namespace.Name)
+		addResourceUsage(used, quota.Status.Used, namespace.Name)
+	}
+
+	return nil
+}
+
+func addResourceUsage(usageMap map[corev1.ResourceName]necotiatorv1beta1.ResourceUsage, resourceList corev1.ResourceList, namespaceName string) {
+	for resourceName, hard := range resourceList {
+		if usage, ok := usageMap[resourceName]; !ok {
+			usageMap[resourceName] = necotiatorv1beta1.ResourceUsage{
+				Total: hard,
+				Namespaces: map[string]resource.Quantity{
+					namespaceName: hard,
+				}}
+		} else {
+			usage.Total.Add(hard)
+			usage.Namespaces[namespaceName] = hard
+			usageMap[resourceName] = usage
+		}
+	}
 }
 
 func (r *TenantResourceQuotaReconciler) reconcileResourceQuota(ctx context.Context, tenantQuota *necotiatorv1beta1.TenantResourceQuota, ns *corev1.Namespace) error {
