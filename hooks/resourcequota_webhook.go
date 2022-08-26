@@ -69,6 +69,19 @@ func (r *resourceQuotaValidator) ValidateUpdate(ctx context.Context, oldObj, new
 	resourcequotalog.Info("validate update")
 
 	if rq, ok := newObj.(*corev1.ResourceQuota); ok {
+		if old, ok := oldObj.(*corev1.ResourceQuota); ok {
+			if old.Labels["necotiator.cybozu.io/tenant"] != rq.Labels["necotiator.cybozu.io/tenant"] {
+				err := apierrors.NewInvalid(
+					schema.GroupKind{Group: corev1.GroupName, Kind: "ResourceQuota"},
+					rq.Name,
+					field.ErrorList{field.Forbidden(
+						field.NewPath("metadata", "labels", "necotiator.cybozu.io/tenant"),
+						"tenant labels is immutable",
+					)})
+				log.FromContext(ctx).Error(err, "validation error")
+				return err
+			}
+		}
 		return r.validate(ctx, rq)
 	}
 	return nil
