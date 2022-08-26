@@ -127,6 +127,31 @@ var _ = Describe("Webhook Table Test", func() {
 			},
 			message: "exceeded tenant quota: %s, requested: limits.cpu=300m, total: limits.cpu=600m, limited: limits.cpu=500m",
 		}),
+		Entry("should deny exceeded total quota", testCase{
+			limit: corev1.ResourceList{
+				"limits.cpu": resource.MustParse("500m"),
+			},
+			allocated: map[corev1.ResourceName]necotiatorv1beta1.ResourceUsage{
+				"limits.cpu": {
+					Total: resource.MustParse("0"),
+					Namespaces: map[string]resource.Quantity{
+						mainNamespace: resource.MustParse("0"),
+					},
+				},
+			},
+			request: corev1.ResourceList{},
+			message: "required limits.cpu by tenant resource quota: %s",
+		}),
+		Entry("should deny exceeded quota if status is empty", testCase{
+			limit: corev1.ResourceList{
+				"limits.cpu": resource.MustParse("500m"),
+			},
+			allocated: map[corev1.ResourceName]necotiatorv1beta1.ResourceUsage{},
+			request: corev1.ResourceList{
+				"limits.cpu": resource.MustParse("1"),
+			},
+			message: "exceeded tenant quota: %s, requested: limits.cpu=1, total: limits.cpu=1, limited: limits.cpu=500m",
+		}),
 		Entry("should allow quota less than limited", testCase{
 			limit: corev1.ResourceList{
 				"limits.cpu": resource.MustParse("1"),
@@ -141,6 +166,24 @@ var _ = Describe("Webhook Table Test", func() {
 			},
 			request: corev1.ResourceList{
 				"limits.cpu": resource.MustParse("600m"),
+			},
+			allow: true,
+		}),
+		Entry("should allow increase quota", testCase{
+			limit: corev1.ResourceList{
+				"limits.cpu": resource.MustParse("500m"),
+			},
+			allocated: map[corev1.ResourceName]necotiatorv1beta1.ResourceUsage{
+				"limits.cpu": {
+					Total: resource.MustParse("400m"),
+					Namespaces: map[string]resource.Quantity{
+						mainNamespace:       resource.MustParse("200m"),
+						newTestObjectName(): resource.MustParse("200m"),
+					},
+				},
+			},
+			request: corev1.ResourceList{
+				"limits.cpu": resource.MustParse("300m"),
 			},
 			allow: true,
 		}),
@@ -176,6 +219,24 @@ var _ = Describe("Webhook Table Test", func() {
 			},
 			request: corev1.ResourceList{
 				"limits.cpu": resource.MustParse("500m"),
+			},
+			allow: true,
+		}),
+		Entry("should allow unknown resource quota", testCase{
+			limit: corev1.ResourceList{
+				"limits.cpu": resource.MustParse("500m"),
+			},
+			allocated: map[corev1.ResourceName]necotiatorv1beta1.ResourceUsage{
+				"limits.cpu": {
+					Total: resource.MustParse("0"),
+					Namespaces: map[string]resource.Quantity{
+						mainNamespace: resource.MustParse("0"),
+					},
+				},
+			},
+			request: corev1.ResourceList{
+				"limits.cpu":    resource.MustParse("0"),
+				"limits.memory": resource.MustParse("1Gi"),
 			},
 			allow: true,
 		}),
