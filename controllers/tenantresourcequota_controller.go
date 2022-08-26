@@ -113,6 +113,14 @@ func (r *TenantResourceQuotaReconciler) sumResourceUsage(ctx context.Context, te
 		addResourceUsage(used, quota.Status.Used, namespace.Name)
 	}
 
+	tenantQuota.Status.Allocated = allocated
+	tenantQuota.Status.Used = used
+
+	err := r.Status().Update(ctx, tenantQuota)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -163,33 +171,50 @@ func (r *TenantResourceQuotaReconciler) reconcileResourceQuota(ctx context.Conte
 // SetupWithManager sets up the controller with the Manager.
 func (r *TenantResourceQuotaReconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manager) error {
 	logger := log.FromContext(ctx)
+
+	mapNamespace := func(o client.Object) []reconcile.Request {
+		var quotas necotiatorv1beta1.TenantResourceQuotaList
+		err := mgr.GetClient().List(ctx, &quotas)
+		if err != nil {
+			logger.Error(err, "watch namespace")
+			return nil
+		}
+
+		var reqs []reconcile.Request
+		for _, quota := range quotas.Items {
+			selector, err := metav1.LabelSelectorAsSelector(quota.Spec.NamespaceSelector)
+			if err != nil {
+				logger.Error(err, "parsing tenant resource quota selector")
+				continue
+			}
+			if selector.Matches(labels.Set(o.GetLabels())) {
+				reqs = append(reqs, reconcile.Request{
+					NamespacedName: types.NamespacedName{
+						Name: quota.GetName(),
+					},
+				})
+			}
+		}
+
+		return reqs
+	}
+	mapResourceQuota := func(o client.Object) []reconcile.Request {
+		tenant := o.GetLabels()["necotiator.cybozu.io/tenant"]
+		if tenant == "" {
+			return nil
+		}
+		return []reconcile.Request{
+			{
+				NamespacedName: types.NamespacedName{
+					Name: tenant,
+				},
+			},
+		}
+	}
+
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&necotiatorv1beta1.TenantResourceQuota{}).
-		Watches(&source.Kind{Type: &corev1.Namespace{}}, handler.EnqueueRequestsFromMapFunc(func(o client.Object) []reconcile.Request {
-			var quotas necotiatorv1beta1.TenantResourceQuotaList
-			err := mgr.GetClient().List(ctx, &quotas)
-			if err != nil {
-				logger.Error(err, "watch namespace")
-				return nil
-			}
-
-			var reqs []reconcile.Request
-			for _, quota := range quotas.Items {
-				selector, err := metav1.LabelSelectorAsSelector(quota.Spec.NamespaceSelector)
-				if err != nil {
-					logger.Error(err, "parsing tenant resource quota selector")
-					continue
-				}
-				if selector.Matches(labels.Set(o.GetLabels())) {
-					reqs = append(reqs, reconcile.Request{
-						NamespacedName: types.NamespacedName{
-							Name: quota.GetName(),
-						},
-					})
-				}
-			}
-
-			return reqs
-		})).
+		Watches(&source.Kind{Type: &corev1.Namespace{}}, handler.EnqueueRequestsFromMapFunc(mapNamespace)).
+		Watches(&source.Kind{Type: &corev1.ResourceQuota{}}, handler.EnqueueRequestsFromMapFunc(mapResourceQuota)).
 		Complete(r)
 }
