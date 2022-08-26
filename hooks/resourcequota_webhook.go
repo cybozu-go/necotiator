@@ -22,20 +22,25 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
+
+	necotiatorv1beta1 "github.com/cybozu-go/necotiator/api/v1beta1"
 )
 
 // log is for logging in this package.
 var resourcequotalog = logf.Log.WithName("resourcequota-resource")
 
 type resourceQuotaValidator struct {
+	client client.Client
 }
 
 func SetupWebhookWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewWebhookManagedBy(mgr).
 		For(&corev1.ResourceQuota{}).
-		WithValidator(&resourceQuotaValidator{}).
+		WithValidator(&resourceQuotaValidator{mgr.GetClient()}).
 		Complete()
 }
 
@@ -58,6 +63,32 @@ func (r *resourceQuotaValidator) ValidateUpdate(ctx context.Context, oldObj, new
 
 	// TODO(user): fill in your validation logic upon object update.
 	return nil
+}
+
+func (v *resourceQuotaValidator) validation(ctx context.Context, rq *corev1.ResourceQuota) error {
+	logger := log.FromContext(ctx)
+
+	tenantName, ok := rq.Labels["necotiator.cybozu.io/tenant"]
+	if !ok {
+		return nil
+	}
+
+	var quota necotiatorv1beta1.TenantResourceQuota
+	err := v.client.Get(ctx, client.ObjectKey{Name: tenantName}, &quota)
+	if err != nil {
+		return err
+	}
+
+	allocated := quota.Status.Allocated
+
+	for resourceName, hard := range rq.Spec.Hard {
+		allocatedResource, ok := allocated[resourceName]
+		if !ok {
+			continue
+		}
+
+	}
+
 }
 
 // ValidateDelete implements webhook.Validator so a webhook will be registered for the type
