@@ -92,10 +92,7 @@ func (v *resourceQuotaValidator) validate(ctx context.Context, rq *corev1.Resour
 
 	var errs field.ErrorList
 	for resourceName, requested := range rq.Spec.Hard {
-		allocatedResource, ok := allocated[resourceName]
-		if !ok {
-			continue
-		}
+		allocatedResource := allocated[resourceName]
 		limit, ok := quota.Spec.Hard[resourceName]
 		if !ok {
 			continue
