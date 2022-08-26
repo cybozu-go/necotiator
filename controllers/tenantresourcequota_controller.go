@@ -20,6 +20,7 @@ import (
 	"context"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -113,9 +114,16 @@ func (r *TenantResourceQuotaReconciler) sumResourceUsage(ctx context.Context, te
 		addResourceUsage(used, quota.Status.Used, namespace.Name)
 	}
 
+	old := tenantQuota.DeepCopy()
+
 	tenantQuota.Status.Allocated = allocated
 	tenantQuota.Status.Used = used
 
+	if equality.Semantic.DeepEqual(old.Status, tenantQuota.Status) {
+		return nil
+	}
+
+	log.FromContext(ctx).Info("Updating status")
 	err := r.Status().Update(ctx, tenantQuota)
 	if err != nil {
 		return err
