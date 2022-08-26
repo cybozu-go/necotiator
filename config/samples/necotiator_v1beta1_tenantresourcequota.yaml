@@ -7,3 +7,6 @@ spec:
   namespaceSelector:
     matchLabels:
       team: neco
+  hard:
+    requests.cpu: "100m"
+    requests.memory: "100m"
