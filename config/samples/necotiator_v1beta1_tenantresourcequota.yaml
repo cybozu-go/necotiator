@@ -4,3 +4,6 @@ metadata:
   name: tenantresourcequota-sample
 spec:
   # TODO(user): Add fields here
+  namespaceSelector:
+    matchLabels:
+      team: neco

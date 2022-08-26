@@ -13,7 +13,7 @@ spec:
     listKind: TenantResourceQuotaList
     plural: tenantresourcequotas
     singular: tenantresourcequota
-  scope: Namespaced
+  scope: Cluster
   versions:
   - name: v1beta1
     schema:
