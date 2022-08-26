@@ -18,6 +18,7 @@ package controllers
 
 import (
 	"context"
+	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
@@ -27,6 +28,7 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
@@ -40,7 +42,8 @@ import (
 // TenantResourceQuotaReconciler reconciles a TenantResourceQuota object
 type TenantResourceQuotaReconciler struct {
 	client.Client
-	Scheme *runtime.Scheme
+	Scheme   *runtime.Scheme
+	Recorder record.EventRecorder
 }
 
 //+kubebuilder:rbac:groups=necotiator.cybozu.io,resources=tenantresourcequotas,verbs=get;list;watch;create;update;patch;delete
@@ -48,6 +51,7 @@ type TenantResourceQuotaReconciler struct {
 //+kubebuilder:rbac:groups=necotiator.cybozu.io,resources=tenantresourcequotas/finalizers,verbs=update
 //+kubebuilder:rbac:groups="",resources=resourcequotas,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups="",resources=namespaces,verbs=get;list;watch
+//+kubebuilder:rbac:groups="",resources=events,verbs=create;update;patch
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -108,6 +112,11 @@ func (r *TenantResourceQuotaReconciler) updateStatus(ctx context.Context, tenant
 		err := r.Get(ctx, client.ObjectKey{Namespace: namespace.Name, Name: "default"}, &quota)
 		if err != nil {
 			return err
+		}
+		if quota.Labels["necotiator.cybozu.io/tenant"] != tenantQuota.Name {
+			log.FromContext(ctx).Error(nil, "Ignore unmatched label namespace", "namespace", namespace.Name)
+			r.Recorder.Event(tenantQuota, corev1.EventTypeWarning, "IgnoredNamespace", fmt.Sprintf("Ignored unmatched label namespace: %s", namespace.Name))
+			continue
 		}
 
 		addResourceUsage(allocated, quota.Status.Hard, namespace.Name)
