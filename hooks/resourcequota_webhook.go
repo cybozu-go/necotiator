@@ -18,9 +18,14 @@ package hooks
 
 import (
 	"context"
+	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/util/validation/field"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -53,7 +58,9 @@ var _ admission.CustomValidator = &resourceQuotaValidator{}
 func (r *resourceQuotaValidator) ValidateCreate(ctx context.Context, obj runtime.Object) error {
 	resourcequotalog.Info("validate create")
 
-	// TODO(user): fill in your validation logic upon object creation.
+	if rq, ok := obj.(*corev1.ResourceQuota); ok {
+		return r.validate(ctx, rq)
+	}
 	return nil
 }
 
@@ -61,11 +68,13 @@ func (r *resourceQuotaValidator) ValidateCreate(ctx context.Context, obj runtime
 func (r *resourceQuotaValidator) ValidateUpdate(ctx context.Context, oldObj, newObj runtime.Object) error {
 	resourcequotalog.Info("validate update")
 
-	// TODO(user): fill in your validation logic upon object update.
+	if rq, ok := newObj.(*corev1.ResourceQuota); ok {
+		return r.validate(ctx, rq)
+	}
 	return nil
 }
 
-func (v *resourceQuotaValidator) validation(ctx context.Context, rq *corev1.ResourceQuota) error {
+func (v *resourceQuotaValidator) validate(ctx context.Context, rq *corev1.ResourceQuota) error {
 	logger := log.FromContext(ctx)
 
 	tenantName, ok := rq.Labels["necotiator.cybozu.io/tenant"]
@@ -81,14 +90,59 @@ func (v *resourceQuotaValidator) validation(ctx context.Context, rq *corev1.Reso
 
 	allocated := quota.Status.Allocated
 
-	for resourceName, hard := range rq.Spec.Hard {
+	var errs field.ErrorList
+	for resourceName, requested := range rq.Spec.Hard {
 		allocatedResource, ok := allocated[resourceName]
 		if !ok {
 			continue
 		}
+		limit, ok := quota.Spec.Hard[resourceName]
+		if !ok {
+			continue
+		}
 
+		if requested.Cmp(resource.MustParse("0")) == 0 {
+			continue
+		}
+
+		newTotal := allocatedResource.Total
+		if oldAllocated, ok := allocatedResource.Namespaces[rq.GetNamespace()]; ok {
+			if requested.Cmp(oldAllocated) <= 0 {
+				continue
+			}
+			newTotal.Sub(oldAllocated)
+		}
+		newTotal.Add(requested)
+
+		if newTotal.Cmp(limit) > 0 {
+			errs = append(errs, field.Forbidden(
+				field.NewPath("spec", "hard", string(resourceName)),
+				fmt.Sprintf(
+					"exceeded tenant quota: %s, requested: %s=%s, limited: %s=%s",
+					tenantName, resourceName, requested.String(), resourceName, limit.String(),
+				),
+			))
+		}
+	}
+	for resourceName := range quota.Spec.Hard {
+		if _, ok := rq.Spec.Hard[resourceName]; !ok {
+			errs = append(errs, field.Required(
+				field.NewPath("spec", "hard", string(resourceName)),
+				fmt.Sprintf(
+					"required %s by tenant resource quota: %s",
+					resourceName, tenantName,
+				),
+			))
+		}
 	}
 
+	if len(errs) > 0 {
+		err := apierrors.NewInvalid(schema.GroupKind{Group: corev1.GroupName, Kind: "ResourceQuota"}, rq.Name, errs)
+		logger.Error(err, "validation error")
+		return err
+	}
+
+	return nil
 }
 
 // ValidateDelete implements webhook.Validator so a webhook will be registered for the type
