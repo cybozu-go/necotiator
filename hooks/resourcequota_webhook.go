@@ -118,8 +118,11 @@ func (v *resourceQuotaValidator) validate(ctx context.Context, rq *corev1.Resour
 			errs = append(errs, field.Forbidden(
 				field.NewPath("spec", "hard", string(resourceName)),
 				fmt.Sprintf(
-					"exceeded tenant quota: %s, requested: %s=%s, limited: %s=%s",
-					tenantName, resourceName, requested.String(), resourceName, limit.String(),
+					"exceeded tenant quota: %s, requested: %s=%s, total: %s=%s, limited: %s=%s",
+					tenantName,
+					resourceName, requested.String(),
+					resourceName, newTotal.String(),
+					resourceName, limit.String(),
 				),
 			))
 		}

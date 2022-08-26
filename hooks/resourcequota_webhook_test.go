@@ -107,7 +107,7 @@ var _ = Describe("Webhook Table Test", func() {
 			request: corev1.ResourceList{
 				"limits.cpu": resource.MustParse("600m"),
 			},
-			message: "exceeded tenant quota: %s, requested: limits.cpu=600m, limited: limits.cpu=500m",
+			message: "exceeded tenant quota: %s, requested: limits.cpu=600m, total: limits.cpu=600m, limited: limits.cpu=500m",
 		}),
 		Entry("should deny exceeded total quota", testCase{
 			limit: corev1.ResourceList{
@@ -125,7 +125,7 @@ var _ = Describe("Webhook Table Test", func() {
 			request: corev1.ResourceList{
 				"limits.cpu": resource.MustParse("300m"),
 			},
-			message: "exceeded tenant quota: %s, requested: limits.cpu=300m, limited: limits.cpu=500m",
+			message: "exceeded tenant quota: %s, requested: limits.cpu=300m, total: limits.cpu=600m, limited: limits.cpu=500m",
 		}),
 		Entry("should allow quota less than limited", testCase{
 			limit: corev1.ResourceList{
