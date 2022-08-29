@@ -346,4 +346,46 @@ var _ = Describe("Test TenantResourceQuotaController", func() {
 			g.Expect(quota.Labels).Should(BeEmpty())
 		}).Should(Succeed())
 	})
+
+	It("should delete resource quota label on updating tenant resource quota label selector", func() {
+		namespaceName := newTestObjectName()
+		teamName := newTestObjectName()
+		namespace := newNamespace(namespaceName, teamName)
+		err := k8sClient.Create(ctx, namespace)
+		Expect(err).ShouldNot(HaveOccurred())
+
+		tenantResourceQuotaName := newTestObjectName()
+		tenantResourceQuota := newTenantResourceQuota(tenantResourceQuotaName, teamName)
+		err = k8sClient.Create(ctx, tenantResourceQuota)
+		Expect(err).ShouldNot(HaveOccurred())
+
+		Eventually(func(g Gomega) {
+			var quota corev1.ResourceQuota
+			err = k8sClient.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: constants.ResourceQuotaNameDefault}, &quota)
+			g.Expect(err).ShouldNot(HaveOccurred())
+
+			g.Expect(quota.Labels).Should(MatchAllKeys(Keys{
+				constants.LabelCreatedBy: Equal(constants.CreatedBy),
+				constants.LabelTenant:    Equal(tenantResourceQuotaName),
+			}))
+		}).Should(Succeed())
+
+		tenantResourceQuota.Spec.NamespaceSelector = &metav1.LabelSelector{
+			MatchLabels: map[string]string{
+				"team": "alternativeTeam",
+			},
+		}
+
+		err = k8sClient.Update(ctx, tenantResourceQuota)
+		Expect(err).ShouldNot(HaveOccurred())
+
+		Eventually(func(g Gomega) {
+			var quota corev1.ResourceQuota
+			err = k8sClient.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: constants.ResourceQuotaNameDefault}, &quota)
+			g.Expect(err).ShouldNot(HaveOccurred())
+
+			g.Expect(quota.Labels).Should(BeEmpty())
+		}).Should(Succeed())
+	})
+
 })
