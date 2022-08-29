@@ -4,8 +4,8 @@ KIND_CONFIG := kind-config.yaml
 
 .PHONY: test
 test:
-	env PATH=$$(pwd)/../bin:$$PATH RUN_E2E=1 \
-		go test -v -race . -ginkgo.progress -ginkgo.v -ginkgo.fail-fast
+	env PATH=$$(pwd)/../bin:$$PATH  \
+		go test -v -race . -ginkgo.progress -ginkgo.v -ginkgo.fail-fast -ginkgo.label-filter=e2e
 
 .PHONY: start
 start:
