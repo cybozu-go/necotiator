@@ -107,6 +107,10 @@ func (r *TenantResourceQuotaReconciler) Reconcile(ctx context.Context, req ctrl.
 		logger.Info("Reconciled", "namespace", ns.GetName())
 	}
 
+	if err := r.removeLabelOnUnmatched(ctx, &quota, &namespaces); err != nil {
+		return ctrl.Result{}, err
+	}
+
 	err = r.updateStatus(ctx, &quota, &namespaces)
 	if err != nil {
 		return ctrl.Result{}, err
@@ -130,6 +134,41 @@ func (r *TenantResourceQuotaReconciler) removeLabel(ctx context.Context, quota *
 	}
 
 	for _, resourceQuota := range resourceQuotaList.Items {
+		delete(resourceQuota.Labels, "app.kubernetes.io/created-by")
+		delete(resourceQuota.Labels, "necotiator.cybozu.io/tenant")
+		err = r.Update(ctx, &resourceQuota)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (r *TenantResourceQuotaReconciler) removeLabelOnUnmatched(ctx context.Context, quota *necotiatorv1beta1.TenantResourceQuota, namespaceList *corev1.NamespaceList) error {
+	logger := log.FromContext(ctx)
+
+	var resourceQuotaList corev1.ResourceQuotaList
+
+	err := r.List(ctx, &resourceQuotaList, &client.ListOptions{
+		LabelSelector: labels.SelectorFromSet(labels.Set{
+			"necotiator.cybozu.io/tenant": quota.GetName(),
+		}),
+	})
+	if err != nil {
+		return err
+	}
+
+	toRemove := make(map[string]corev1.ResourceQuota)
+	for _, resourceQuota := range resourceQuotaList.Items {
+		toRemove[resourceQuota.Namespace] = resourceQuota
+	}
+	for _, namespace := range namespaceList.Items {
+		delete(toRemove, namespace.Name)
+	}
+
+	for _, resourceQuota := range toRemove {
+		logger.Info("Removing label from the selector unmatched resource quota", "namespace", resourceQuota.Namespace)
 		delete(resourceQuota.Labels, "app.kubernetes.io/created-by")
 		delete(resourceQuota.Labels, "necotiator.cybozu.io/tenant")
 		err = r.Update(ctx, &resourceQuota)
