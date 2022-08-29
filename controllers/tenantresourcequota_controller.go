@@ -118,6 +118,26 @@ func (r *TenantResourceQuotaReconciler) Reconcile(ctx context.Context, req ctrl.
 }
 
 func (r *TenantResourceQuotaReconciler) removeLabel(ctx context.Context, quota *necotiatorv1beta1.TenantResourceQuota) error {
+	var resourceQuotaList corev1.ResourceQuotaList
+
+	err := r.List(ctx, &resourceQuotaList, &client.ListOptions{
+		LabelSelector: labels.SelectorFromSet(labels.Set{
+			"necotiator.cybozu.io/tenant": quota.GetName(),
+		}),
+	})
+	if err != nil {
+		return err
+	}
+
+	for _, resourceQuota := range resourceQuotaList.Items {
+		delete(resourceQuota.Labels, "app.kubernetes.io/created-by")
+		delete(resourceQuota.Labels, "necotiator.cybozu.io/tenant")
+		err = r.Update(ctx, &resourceQuota)
+		if err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 

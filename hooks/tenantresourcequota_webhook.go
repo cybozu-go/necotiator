@@ -23,6 +23,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
@@ -57,6 +58,8 @@ func (m *tenantResourceQuotaMutator) Default(ctx context.Context, obj runtime.Ob
 	}
 
 	if !controllerutil.ContainsFinalizer(quota, "necotiator.cybozu.io/finalizer") {
+		logger := log.FromContext(ctx)
+		logger.Info("add finalizer")
 		controllerutil.AddFinalizer(quota, "necotiator.cybozu.io/finalizer")
 	}
 
