@@ -92,6 +92,9 @@ var _ = BeforeSuite(func() {
 	err = SetupResourceQuotaWebhookWithManager(mgr)
 	Expect(err).NotTo(HaveOccurred())
 
+	err = SetupTenantResourceQuotaWebhookWithManager(mgr)
+	Expect(err).NotTo(HaveOccurred())
+
 	//+kubebuilder:scaffold:webhook
 
 	go func() {
