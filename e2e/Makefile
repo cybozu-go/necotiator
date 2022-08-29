@@ -17,6 +17,13 @@ start:
 	kustomize build ../config/default | kubectl apply -f -
 	kubectl -n necotiator-system wait --for=condition=available --timeout=180s --all deployments
 
+.PHONY: logs
+logs:
+	rm -rf logs.tar.gz logs
+	kind export logs --name=necotiator ./logs
+	tar czf logs.tar.gz logs
+	rm -rf logs
+
 .PHONY: stop
 stop:
 	kind delete cluster --name=necotiator
