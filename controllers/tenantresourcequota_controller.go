@@ -31,6 +31,7 @@ import (
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -71,6 +72,19 @@ func (r *TenantResourceQuotaReconciler) Reconcile(ctx context.Context, req ctrl.
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
+	if !quota.DeletionTimestamp.IsZero() {
+		if controllerutil.ContainsFinalizer(&quota, "necotiator.cybozu.io/finalizer") {
+			if err := r.removeLabel(ctx, &quota); err != nil {
+				return ctrl.Result{}, err
+			}
+			controllerutil.RemoveFinalizer(&quota, "necotiator.cybozu.io/finalizer")
+			if err := r.Update(ctx, &quota); err != nil {
+				return ctrl.Result{}, err
+			}
+		}
+		return ctrl.Result{}, nil
+	}
+
 	var namespaces corev1.NamespaceList
 
 	selector, err := metav1.LabelSelectorAsSelector(quota.Spec.NamespaceSelector)
@@ -101,6 +115,10 @@ func (r *TenantResourceQuotaReconciler) Reconcile(ctx context.Context, req ctrl.
 	logger.Info("Reconciling", "namespaces", namespaces)
 
 	return ctrl.Result{}, nil
+}
+
+func (r *TenantResourceQuotaReconciler) removeLabel(ctx context.Context, quota *necotiatorv1beta1.TenantResourceQuota) error {
+	return nil
 }
 
 func (r *TenantResourceQuotaReconciler) updateStatus(ctx context.Context, tenantQuota *necotiatorv1beta1.TenantResourceQuota, namespaceList *corev1.NamespaceList) error {
