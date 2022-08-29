@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	necotiatorv1beta1 "github.com/cybozu-go/necotiator/api/v1beta1"
+	"github.com/cybozu-go/necotiator/pkg/constants"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
@@ -73,11 +74,11 @@ var _ = Describe("Webhook Table Test", func() {
 
 		resourceQuota := &corev1.ResourceQuota{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      "default",
+				Name:      constants.ResourceQuotaNameDefault,
 				Namespace: namespaceName,
 				Labels: map[string]string{
-					"app.kubernetes.io/created-by": "necotiator",
-					"necotiator.cybozu.io/tenant":  tenantResourceQuotaName,
+					constants.LabelCreatedBy: constants.CreatedBy,
+					constants.LabelTenant:    tenantResourceQuotaName,
 				},
 			},
 			Spec: corev1.ResourceQuotaSpec{
@@ -296,11 +297,11 @@ var _ = Describe("Webhook Table Test", func() {
 
 		resourceQuota := &corev1.ResourceQuota{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      "default",
+				Name:      constants.ResourceQuotaNameDefault,
 				Namespace: namespaceName,
 				Labels: map[string]string{
-					"app.kubernetes.io/created-by": "necotiator",
-					"necotiator.cybozu.io/tenant":  tenantResourceQuotaName,
+					constants.LabelCreatedBy: constants.CreatedBy,
+					constants.LabelTenant:    tenantResourceQuotaName,
 				},
 			},
 			Spec: corev1.ResourceQuotaSpec{
@@ -310,7 +311,7 @@ var _ = Describe("Webhook Table Test", func() {
 		err = k8sClient.Create(ctx, resourceQuota)
 		Expect(err).ShouldNot(HaveOccurred())
 
-		resourceQuota.ObjectMeta.Labels["necotiator.cybozu.io/tenant"] = "user-defined"
+		resourceQuota.ObjectMeta.Labels[constants.LabelTenant] = "user-defined"
 		err = k8sClient.Update(ctx, resourceQuota)
 		Expect(err).Should(HaveStatusErrorReason(Equal(metav1.StatusReasonInvalid)))
 		Expect(err).Should(HaveStatusErrorMessage(ContainSubstring(testCase.message)))

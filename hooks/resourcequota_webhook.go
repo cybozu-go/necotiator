@@ -33,6 +33,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	necotiatorv1beta1 "github.com/cybozu-go/necotiator/api/v1beta1"
+	"github.com/cybozu-go/necotiator/pkg/constants"
 )
 
 // log is for logging in this package.
@@ -93,12 +94,12 @@ func (r *resourceQuotaValidator) validateLabelChange(ctx context.Context, oldObj
 		return nil
 	}
 
-	if oldObj.Labels["necotiator.cybozu.io/tenant"] != newObj.Labels["necotiator.cybozu.io/tenant"] {
+	if oldObj.Labels[constants.LabelTenant] != newObj.Labels[constants.LabelTenant] {
 		err := apierrors.NewInvalid(
 			schema.GroupKind{Group: corev1.GroupName, Kind: "ResourceQuota"},
 			newObj.Name,
 			field.ErrorList{field.Forbidden(
-				field.NewPath("metadata", "labels", "necotiator.cybozu.io/tenant"),
+				field.NewPath("metadata", "labels", constants.LabelTenant),
 				"tenant labels is immutable",
 			)})
 		log.FromContext(ctx).Error(err, "validation error")
@@ -110,7 +111,7 @@ func (r *resourceQuotaValidator) validateLabelChange(ctx context.Context, oldObj
 func (v *resourceQuotaValidator) validate(ctx context.Context, rq *corev1.ResourceQuota) error {
 	logger := log.FromContext(ctx)
 
-	tenantName, ok := rq.Labels["necotiator.cybozu.io/tenant"]
+	tenantName, ok := rq.Labels[constants.LabelTenant]
 	if !ok {
 		return nil
 	}

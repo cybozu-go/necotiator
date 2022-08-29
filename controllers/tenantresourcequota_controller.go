@@ -38,6 +38,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	necotiatorv1beta1 "github.com/cybozu-go/necotiator/api/v1beta1"
+	"github.com/cybozu-go/necotiator/pkg/constants"
 )
 
 // TenantResourceQuotaReconciler reconciles a TenantResourceQuota object
@@ -73,11 +74,11 @@ func (r *TenantResourceQuotaReconciler) Reconcile(ctx context.Context, req ctrl.
 	}
 
 	if !quota.DeletionTimestamp.IsZero() {
-		if controllerutil.ContainsFinalizer(&quota, "necotiator.cybozu.io/finalizer") {
+		if controllerutil.ContainsFinalizer(&quota, constants.Finalizer) {
 			if err := r.removeLabel(ctx, &quota); err != nil {
 				return ctrl.Result{}, err
 			}
-			controllerutil.RemoveFinalizer(&quota, "necotiator.cybozu.io/finalizer")
+			controllerutil.RemoveFinalizer(&quota, constants.Finalizer)
 			if err := r.Update(ctx, &quota); err != nil {
 				return ctrl.Result{}, err
 			}
@@ -126,7 +127,7 @@ func (r *TenantResourceQuotaReconciler) removeLabel(ctx context.Context, quota *
 
 	err := r.List(ctx, &resourceQuotaList, &client.ListOptions{
 		LabelSelector: labels.SelectorFromSet(labels.Set{
-			"necotiator.cybozu.io/tenant": quota.GetName(),
+			constants.LabelTenant: quota.GetName(),
 		}),
 	})
 	if err != nil {
@@ -134,8 +135,8 @@ func (r *TenantResourceQuotaReconciler) removeLabel(ctx context.Context, quota *
 	}
 
 	for _, resourceQuota := range resourceQuotaList.Items {
-		delete(resourceQuota.Labels, "app.kubernetes.io/created-by")
-		delete(resourceQuota.Labels, "necotiator.cybozu.io/tenant")
+		delete(resourceQuota.Labels, constants.LabelCreatedBy)
+		delete(resourceQuota.Labels, constants.LabelTenant)
 		err = r.Update(ctx, &resourceQuota)
 		if err != nil {
 			return err
@@ -152,7 +153,7 @@ func (r *TenantResourceQuotaReconciler) removeLabelOnUnmatched(ctx context.Conte
 
 	err := r.List(ctx, &resourceQuotaList, &client.ListOptions{
 		LabelSelector: labels.SelectorFromSet(labels.Set{
-			"necotiator.cybozu.io/tenant": quota.GetName(),
+			constants.LabelTenant: quota.GetName(),
 		}),
 	})
 	if err != nil {
@@ -169,8 +170,8 @@ func (r *TenantResourceQuotaReconciler) removeLabelOnUnmatched(ctx context.Conte
 
 	for _, resourceQuota := range toRemove {
 		logger.Info("Removing label from the selector unmatched resource quota", "namespace", resourceQuota.Namespace)
-		delete(resourceQuota.Labels, "app.kubernetes.io/created-by")
-		delete(resourceQuota.Labels, "necotiator.cybozu.io/tenant")
+		delete(resourceQuota.Labels, constants.LabelCreatedBy)
+		delete(resourceQuota.Labels, constants.LabelTenant)
 		err = r.Update(ctx, &resourceQuota)
 		if err != nil {
 			return err
@@ -186,11 +187,11 @@ func (r *TenantResourceQuotaReconciler) updateStatus(ctx context.Context, tenant
 
 	for _, namespace := range namespaceList.Items {
 		var quota corev1.ResourceQuota
-		err := r.Get(ctx, client.ObjectKey{Namespace: namespace.Name, Name: "default"}, &quota)
+		err := r.Get(ctx, client.ObjectKey{Namespace: namespace.Name, Name: constants.ResourceQuotaNameDefault}, &quota)
 		if err != nil {
 			return err
 		}
-		if quota.Labels["necotiator.cybozu.io/tenant"] != tenantQuota.Name {
+		if quota.Labels[constants.LabelTenant] != tenantQuota.Name {
 			log.FromContext(ctx).Error(nil, "Ignore unmatched label namespace", "namespace", namespace.Name)
 			r.Recorder.Event(tenantQuota, corev1.EventTypeWarning, "IgnoredNamespace", fmt.Sprintf("Ignored unmatched label namespace: %s", namespace.Name))
 			continue
@@ -238,10 +239,10 @@ func (r *TenantResourceQuotaReconciler) reconcileResourceQuota(ctx context.Conte
 	quota := corev1.ResourceQuota{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: ns.GetName(),
-			Name:      "default",
+			Name:      constants.ResourceQuotaNameDefault,
 			Labels: map[string]string{
-				"app.kubernetes.io/created-by": "necotiator",
-				"necotiator.cybozu.io/tenant":  tenantQuota.GetName(),
+				constants.LabelCreatedBy: constants.CreatedBy,
+				constants.LabelTenant:    tenantQuota.GetName(),
 			},
 		},
 		Spec: corev1.ResourceQuotaSpec{
@@ -293,7 +294,7 @@ func (r *TenantResourceQuotaReconciler) SetupWithManager(ctx context.Context, mg
 		return reqs
 	}
 	mapResourceQuota := func(o client.Object) []reconcile.Request {
-		tenant := o.GetLabels()["necotiator.cybozu.io/tenant"]
+		tenant := o.GetLabels()[constants.LabelTenant]
 		if tenant == "" {
 			return nil
 		}

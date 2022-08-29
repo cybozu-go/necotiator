@@ -34,6 +34,7 @@ import (
 	necotiatorv1beta1 "github.com/cybozu-go/necotiator/api/v1beta1"
 	"github.com/cybozu-go/necotiator/controllers"
 	"github.com/cybozu-go/necotiator/hooks"
+	"github.com/cybozu-go/necotiator/pkg/constants"
 	//+kubebuilder:scaffold:imports
 )
 
@@ -95,7 +96,7 @@ func main() {
 	if err = (&controllers.TenantResourceQuotaReconciler{
 		Client:   mgr.GetClient(),
 		Scheme:   mgr.GetScheme(),
-		Recorder: mgr.GetEventRecorderFor("necotiator"),
+		Recorder: mgr.GetEventRecorderFor(constants.EventRecorderName),
 	}).SetupWithManager(ctx, mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "TenantResourceQuota")
 		os.Exit(1)

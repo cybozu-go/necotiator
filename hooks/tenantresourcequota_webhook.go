@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/cybozu-go/necotiator/pkg/constants"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -57,10 +58,10 @@ func (m *tenantResourceQuotaMutator) Default(ctx context.Context, obj runtime.Ob
 		return fmt.Errorf("unknown obj type: %T", obj)
 	}
 
-	if !controllerutil.ContainsFinalizer(quota, "necotiator.cybozu.io/finalizer") {
+	if !controllerutil.ContainsFinalizer(quota, constants.Finalizer) {
 		logger := log.FromContext(ctx)
 		logger.Info("add finalizer")
-		controllerutil.AddFinalizer(quota, "necotiator.cybozu.io/finalizer")
+		controllerutil.AddFinalizer(quota, constants.Finalizer)
 	}
 
 	return nil

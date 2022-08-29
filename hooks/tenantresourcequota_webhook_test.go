@@ -2,6 +2,7 @@ package hooks
 
 import (
 	necotiatorv1beta1 "github.com/cybozu-go/necotiator/api/v1beta1"
+	"github.com/cybozu-go/necotiator/pkg/constants"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
@@ -27,7 +28,7 @@ var _ = Describe("TenantResourceQuota Webhook Test", func() {
 		err = k8sClient.Get(ctx, client.ObjectKey{Name: tenantResourceQuotaName}, tenantResourceQuota)
 		Expect(err).ShouldNot(HaveOccurred())
 
-		Expect(tenantResourceQuota.Finalizers).Should(ContainElement("necotiator.cybozu.io/finalizer"))
+		Expect(tenantResourceQuota.Finalizers).Should(ContainElement(constants.Finalizer))
 	})
 
 	It("should not add finalizer to tenant resource quota on update", func() {
@@ -46,12 +47,12 @@ var _ = Describe("TenantResourceQuota Webhook Test", func() {
 		err = k8sClient.Get(ctx, client.ObjectKey{Name: tenantResourceQuotaName}, tenantResourceQuota)
 		Expect(err).ShouldNot(HaveOccurred())
 
-		controllerutil.RemoveFinalizer(tenantResourceQuota, "necotiator.cybozu.io/finalizer")
+		controllerutil.RemoveFinalizer(tenantResourceQuota, constants.Finalizer)
 		err = k8sClient.Update(ctx, tenantResourceQuota)
 		Expect(err).ShouldNot(HaveOccurred())
 
 		err = k8sClient.Get(ctx, client.ObjectKey{Name: tenantResourceQuotaName}, tenantResourceQuota)
 		Expect(err).ShouldNot(HaveOccurred())
-		Expect(tenantResourceQuota.Finalizers).ShouldNot(ContainElement("necotiator.cybozu.io/finalizer"))
+		Expect(tenantResourceQuota.Finalizers).ShouldNot(ContainElement(constants.Finalizer))
 	})
 })
