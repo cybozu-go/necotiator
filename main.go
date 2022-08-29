@@ -100,8 +100,12 @@ func main() {
 		setupLog.Error(err, "unable to create controller", "controller", "TenantResourceQuota")
 		os.Exit(1)
 	}
-	if err = hooks.SetupWebhookWithManager(mgr); err != nil {
+	if err = hooks.SetupResourceQuotaWebhookWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create webhook", "webhook", "ResourceQuota")
+		os.Exit(1)
+	}
+	if err = hooks.SetupTenantResourceQuotaWebhookWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create webhook", "webhook", "TenantResourceQuota")
 		os.Exit(1)
 	}
 	//+kubebuilder:scaffold:builder
