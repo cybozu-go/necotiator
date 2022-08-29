@@ -127,7 +127,7 @@ var _ = Describe("Webhook Table Test", func() {
 			},
 			message: "exceeded tenant quota: %s, requested: limits.cpu=300m, total: limits.cpu=600m, limited: limits.cpu=500m",
 		}),
-		Entry("should deny exceeded total quota", testCase{
+		Entry("should deny if limits.cpu is empty", testCase{
 			limit: corev1.ResourceList{
 				"limits.cpu": resource.MustParse("500m"),
 			},
@@ -241,4 +241,78 @@ var _ = Describe("Webhook Table Test", func() {
 			allow: true,
 		}),
 	)
+
+	It("should deny change label", func() {
+		testCase := testCase{
+			limit: corev1.ResourceList{
+				"limits.cpu": resource.MustParse("1"),
+			},
+			allocated: map[corev1.ResourceName]necotiatorv1beta1.ResourceUsage{
+				"limits.cpu": {
+					Total: resource.MustParse("0"),
+					Namespaces: map[string]resource.Quantity{
+						mainNamespace: resource.MustParse("0"),
+					},
+				},
+			},
+			request: corev1.ResourceList{
+				"limits.cpu": resource.MustParse("600m"),
+			},
+			message: `ResourceQuota "default" is invalid: metadata.labels.necotiator.cybozu.io/tenant: Forbidden: tenant labels is immutable`,
+		}
+		namespaceName := newTestObjectName()
+		namespace := &corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: namespaceName,
+			},
+		}
+		err := k8sClient.Create(ctx, namespace)
+		Expect(err).ShouldNot(HaveOccurred())
+
+		tenantResourceQuotaName := newTestObjectName()
+		tenantResourceQuota := &necotiatorv1beta1.TenantResourceQuota{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: tenantResourceQuotaName,
+			},
+			Spec: necotiatorv1beta1.TenantResourceQuotaSpec{
+				Hard: testCase.limit,
+			},
+		}
+		err = k8sClient.Create(ctx, tenantResourceQuota)
+		Expect(err).ShouldNot(HaveOccurred())
+
+		for resourceName, usage := range testCase.allocated {
+			if v, ok := usage.Namespaces[mainNamespace]; ok {
+				usage.Namespaces[namespaceName] = v
+				delete(usage.Namespaces, mainNamespace)
+			}
+			testCase.allocated[resourceName] = usage
+		}
+		tenantResourceQuota.Status = necotiatorv1beta1.TenantResourceQuotaStatus{
+			Allocated: testCase.allocated,
+		}
+		err = k8sClient.Status().Update(ctx, tenantResourceQuota)
+		Expect(err).ShouldNot(HaveOccurred())
+
+		resourceQuota := &corev1.ResourceQuota{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "default",
+				Namespace: namespaceName,
+				Labels: map[string]string{
+					"app.kubernetes.io/created-by": "necotiator",
+					"necotiator.cybozu.io/tenant":  tenantResourceQuotaName,
+				},
+			},
+			Spec: corev1.ResourceQuotaSpec{
+				Hard: testCase.request,
+			},
+		}
+		err = k8sClient.Create(ctx, resourceQuota)
+		Expect(err).ShouldNot(HaveOccurred())
+
+		resourceQuota.ObjectMeta.Labels["necotiator.cybozu.io/tenant"] = "user-defined"
+		err = k8sClient.Update(ctx, resourceQuota)
+		Expect(err).Should(HaveStatusErrorReason(Equal(metav1.StatusReasonInvalid)))
+		Expect(err).Should(HaveStatusErrorMessage(ContainSubstring(testCase.message)))
+	})
 })
