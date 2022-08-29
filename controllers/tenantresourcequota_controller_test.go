@@ -18,6 +18,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	necotiatorv1beta1 "github.com/cybozu-go/necotiator/api/v1beta1"
+	"github.com/cybozu-go/necotiator/pkg/constants"
 )
 
 var (
@@ -47,6 +48,9 @@ func newTenantResourceQuota(name, teamName string) *necotiatorv1beta1.TenantReso
 	return &necotiatorv1beta1.TenantResourceQuota{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
+			Finalizers: []string{
+				constants.Finalizer,
+			},
 		},
 		Spec: necotiatorv1beta1.TenantResourceQuotaSpec{
 			Hard: v1.ResourceList{
@@ -110,12 +114,12 @@ var _ = Describe("Test TenantResourceQuotaController", func() {
 
 		Eventually(func(g Gomega) {
 			var quota corev1.ResourceQuota
-			err = k8sClient.Get(ctx, client.ObjectKey{Namespace: name, Name: "default"}, &quota)
+			err = k8sClient.Get(ctx, client.ObjectKey{Namespace: name, Name: constants.ResourceQuotaNameDefault}, &quota)
 			g.Expect(err).ShouldNot(HaveOccurred())
 
 			g.Expect(quota.Labels).Should(MatchAllKeys(Keys{
-				"app.kubernetes.io/created-by": Equal("necotiator"),
-				"necotiator.cybozu.io/tenant":  Equal(tenantResourceQuotaName),
+				constants.LabelCreatedBy: Equal(constants.CreatedBy),
+				constants.LabelTenant:    Equal(tenantResourceQuotaName),
 			}))
 			g.Expect(quota.Spec.Hard).Should(MatchAllKeys(Keys{
 				corev1.ResourceName("limits.cpu"): SemanticEqual(resource.MustParse("0")),
@@ -142,14 +146,14 @@ var _ = Describe("Test TenantResourceQuotaController", func() {
 
 		Eventually(func(g Gomega) {
 			var quota corev1.ResourceQuota
-			err = k8sClient.Get(ctx, client.ObjectKey{Namespace: name, Name: "default"}, &quota)
+			err = k8sClient.Get(ctx, client.ObjectKey{Namespace: name, Name: constants.ResourceQuotaNameDefault}, &quota)
 			g.Expect(err).ShouldNot(HaveOccurred())
-			err = k8sClient.Get(ctx, client.ObjectKey{Namespace: name2, Name: "default"}, &quota)
+			err = k8sClient.Get(ctx, client.ObjectKey{Namespace: name2, Name: constants.ResourceQuotaNameDefault}, &quota)
 			g.Expect(err).ShouldNot(HaveOccurred())
 		}).Should(Succeed())
 
 		var quota corev1.ResourceQuota
-		err = k8sClient.Get(ctx, client.ObjectKey{Namespace: name, Name: "default"}, &quota)
+		err = k8sClient.Get(ctx, client.ObjectKey{Namespace: name, Name: constants.ResourceQuotaNameDefault}, &quota)
 		Expect(err).ShouldNot(HaveOccurred())
 		quota.Status.Hard = corev1.ResourceList{
 			"limits.cpu": resource.MustParse("0"),
@@ -160,7 +164,7 @@ var _ = Describe("Test TenantResourceQuotaController", func() {
 		err = k8sClient.Status().Update(ctx, &quota)
 		Expect(err).ShouldNot(HaveOccurred())
 
-		err = k8sClient.Get(ctx, client.ObjectKey{Namespace: name2, Name: "default"}, &quota)
+		err = k8sClient.Get(ctx, client.ObjectKey{Namespace: name2, Name: constants.ResourceQuotaNameDefault}, &quota)
 		Expect(err).ShouldNot(HaveOccurred())
 		quota.Status.Hard = corev1.ResourceList{
 			"limits.cpu": resource.MustParse("0"),
@@ -211,12 +215,12 @@ var _ = Describe("Test TenantResourceQuotaController", func() {
 
 		Eventually(func(g Gomega) {
 			var quota corev1.ResourceQuota
-			err = k8sClient.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: "default"}, &quota)
+			err = k8sClient.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: constants.ResourceQuotaNameDefault}, &quota)
 			g.Expect(err).ShouldNot(HaveOccurred())
 
 			g.Expect(quota.Labels).Should(MatchAllKeys(Keys{
-				"app.kubernetes.io/created-by": Equal("necotiator"),
-				"necotiator.cybozu.io/tenant":  Equal(tenantResourceQuotaName),
+				constants.LabelCreatedBy: Equal(constants.CreatedBy),
+				constants.LabelTenant:    Equal(tenantResourceQuotaName),
 			}))
 			g.Expect(quota.Spec.Hard).Should(MatchAllKeys(Keys{
 				corev1.ResourceName("limits.cpu"): SemanticEqual(resource.MustParse("0")),
@@ -239,7 +243,7 @@ var _ = Describe("Test TenantResourceQuotaController", func() {
 
 		Consistently(func(g Gomega) {
 			var quota corev1.ResourceQuota
-			err = k8sClient.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: "default"}, &quota)
+			err = k8sClient.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: constants.ResourceQuotaNameDefault}, &quota)
 			g.Expect(err).Should(Satisfy(errors.IsNotFound))
 		}).WithTimeout(3*time.Second).Should(Succeed(), "resource quota created to the namespace with different label")
 
@@ -251,12 +255,12 @@ var _ = Describe("Test TenantResourceQuotaController", func() {
 
 		Eventually(func(g Gomega) {
 			var quota corev1.ResourceQuota
-			err = k8sClient.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: "default"}, &quota)
+			err = k8sClient.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: constants.ResourceQuotaNameDefault}, &quota)
 			g.Expect(err).ShouldNot(HaveOccurred())
 
 			g.Expect(quota.Labels).Should(MatchAllKeys(Keys{
-				"app.kubernetes.io/created-by": Equal("necotiator"),
-				"necotiator.cybozu.io/tenant":  Equal(tenantResourceQuotaName),
+				constants.LabelCreatedBy: Equal(constants.CreatedBy),
+				constants.LabelTenant:    Equal(tenantResourceQuotaName),
 			}))
 			g.Expect(quota.Spec.Hard).Should(MatchAllKeys(Keys{
 				corev1.ResourceName("limits.cpu"): SemanticEqual(resource.MustParse("0")),
@@ -278,7 +282,7 @@ var _ = Describe("Test TenantResourceQuotaController", func() {
 
 		Consistently(func(g Gomega) {
 			var quota corev1.ResourceQuota
-			err = k8sClient.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: "default"}, &quota)
+			err = k8sClient.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: constants.ResourceQuotaNameDefault}, &quota)
 			g.Expect(err).Should(Satisfy(errors.IsNotFound))
 		}).WithTimeout(3*time.Second).Should(Succeed(), "resource quota created to the namespace with different label")
 
@@ -290,16 +294,97 @@ var _ = Describe("Test TenantResourceQuotaController", func() {
 
 		Eventually(func(g Gomega) {
 			var quota corev1.ResourceQuota
-			err = k8sClient.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: "default"}, &quota)
+			err = k8sClient.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: constants.ResourceQuotaNameDefault}, &quota)
 			g.Expect(err).ShouldNot(HaveOccurred())
 
 			g.Expect(quota.Labels).Should(MatchAllKeys(Keys{
-				"app.kubernetes.io/created-by": Equal("necotiator"),
-				"necotiator.cybozu.io/tenant":  Equal(tenantResourceQuotaName),
+				constants.LabelCreatedBy: Equal(constants.CreatedBy),
+				constants.LabelTenant:    Equal(tenantResourceQuotaName),
 			}))
 			g.Expect(quota.Spec.Hard).Should(MatchAllKeys(Keys{
 				corev1.ResourceName("limits.cpu"): SemanticEqual(resource.MustParse("0")),
 			}))
+		}).Should(Succeed())
+	})
+
+	It("should delete resource quota label on deleting tenant resource quota", func() {
+		namespaceName := newTestObjectName()
+		teamName := newTestObjectName()
+		namespace := newNamespace(namespaceName, teamName)
+		err := k8sClient.Create(ctx, namespace)
+		Expect(err).ShouldNot(HaveOccurred())
+
+		tenantResourceQuotaName := newTestObjectName()
+		tenantResourceQuota := newTenantResourceQuota(tenantResourceQuotaName, teamName)
+		err = k8sClient.Create(ctx, tenantResourceQuota)
+		Expect(err).ShouldNot(HaveOccurred())
+
+		Eventually(func(g Gomega) {
+			var quota corev1.ResourceQuota
+			err = k8sClient.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: constants.ResourceQuotaNameDefault}, &quota)
+			g.Expect(err).ShouldNot(HaveOccurred())
+
+			g.Expect(quota.Labels).Should(MatchAllKeys(Keys{
+				constants.LabelCreatedBy: Equal(constants.CreatedBy),
+				constants.LabelTenant:    Equal(tenantResourceQuotaName),
+			}))
+		}).Should(Succeed())
+
+		err = k8sClient.Delete(ctx, tenantResourceQuota)
+		Expect(err).ShouldNot(HaveOccurred())
+
+		Eventually(func(g Gomega) {
+			err = k8sClient.Get(ctx, client.ObjectKey{Name: tenantResourceQuotaName}, tenantResourceQuota)
+			g.Expect(err).Should(Satisfy(errors.IsNotFound))
+		}).Should(Succeed())
+
+		Eventually(func(g Gomega) {
+			var quota corev1.ResourceQuota
+			err = k8sClient.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: constants.ResourceQuotaNameDefault}, &quota)
+			g.Expect(err).ShouldNot(HaveOccurred())
+
+			g.Expect(quota.Labels).Should(BeEmpty())
+		}).Should(Succeed())
+	})
+
+	It("should delete resource quota label on updating tenant resource quota label selector", func() {
+		namespaceName := newTestObjectName()
+		teamName := newTestObjectName()
+		namespace := newNamespace(namespaceName, teamName)
+		err := k8sClient.Create(ctx, namespace)
+		Expect(err).ShouldNot(HaveOccurred())
+
+		tenantResourceQuotaName := newTestObjectName()
+		tenantResourceQuota := newTenantResourceQuota(tenantResourceQuotaName, teamName)
+		err = k8sClient.Create(ctx, tenantResourceQuota)
+		Expect(err).ShouldNot(HaveOccurred())
+
+		Eventually(func(g Gomega) {
+			var quota corev1.ResourceQuota
+			err = k8sClient.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: constants.ResourceQuotaNameDefault}, &quota)
+			g.Expect(err).ShouldNot(HaveOccurred())
+
+			g.Expect(quota.Labels).Should(MatchAllKeys(Keys{
+				constants.LabelCreatedBy: Equal(constants.CreatedBy),
+				constants.LabelTenant:    Equal(tenantResourceQuotaName),
+			}))
+		}).Should(Succeed())
+
+		tenantResourceQuota.Spec.NamespaceSelector = &metav1.LabelSelector{
+			MatchLabels: map[string]string{
+				"team": "alternativeTeam",
+			},
+		}
+
+		err = k8sClient.Update(ctx, tenantResourceQuota)
+		Expect(err).ShouldNot(HaveOccurred())
+
+		Eventually(func(g Gomega) {
+			var quota corev1.ResourceQuota
+			err = k8sClient.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: constants.ResourceQuotaNameDefault}, &quota)
+			g.Expect(err).ShouldNot(HaveOccurred())
+
+			g.Expect(quota.Labels).Should(BeEmpty())
 		}).Should(Succeed())
 	})
 

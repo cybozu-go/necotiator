@@ -33,6 +33,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	necotiatorv1beta1 "github.com/cybozu-go/necotiator/api/v1beta1"
+	"github.com/cybozu-go/necotiator/pkg/constants"
 )
 
 // log is for logging in this package.
@@ -42,7 +43,7 @@ type resourceQuotaValidator struct {
 	client client.Client
 }
 
-func SetupWebhookWithManager(mgr ctrl.Manager) error {
+func SetupResourceQuotaWebhookWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewWebhookManagedBy(mgr).
 		For(&corev1.ResourceQuota{}).
 		WithValidator(&resourceQuotaValidator{mgr.GetClient()}).
@@ -68,21 +69,41 @@ func (r *resourceQuotaValidator) ValidateCreate(ctx context.Context, obj runtime
 func (r *resourceQuotaValidator) ValidateUpdate(ctx context.Context, oldObj, newObj runtime.Object) error {
 	resourcequotalog.Info("validate update")
 
-	if rq, ok := newObj.(*corev1.ResourceQuota); ok {
-		if old, ok := oldObj.(*corev1.ResourceQuota); ok {
-			if old.Labels["necotiator.cybozu.io/tenant"] != rq.Labels["necotiator.cybozu.io/tenant"] {
-				err := apierrors.NewInvalid(
-					schema.GroupKind{Group: corev1.GroupName, Kind: "ResourceQuota"},
-					rq.Name,
-					field.ErrorList{field.Forbidden(
-						field.NewPath("metadata", "labels", "necotiator.cybozu.io/tenant"),
-						"tenant labels is immutable",
-					)})
-				log.FromContext(ctx).Error(err, "validation error")
-				return err
-			}
-		}
-		return r.validate(ctx, rq)
+	rq, ok := newObj.(*corev1.ResourceQuota)
+	if !ok {
+		return fmt.Errorf("unknown newObj type %T", newObj)
+	}
+	old, ok := oldObj.(*corev1.ResourceQuota)
+	if !ok {
+		return fmt.Errorf("unknown oldObj type %T", oldObj)
+	}
+
+	if err := r.validateLabelChange(ctx, old, rq); err != nil {
+		return err
+	}
+
+	return r.validate(ctx, rq)
+}
+
+func (r *resourceQuotaValidator) validateLabelChange(ctx context.Context, oldObj, newObj *corev1.ResourceQuota) error {
+	request, err := admission.RequestFromContext(ctx)
+	if err != nil {
+		return err
+	}
+	if request.UserInfo.Username == "system:serviceaccount:necotiator-system:necotiator-controller-manager" {
+		return nil
+	}
+
+	if oldObj.Labels[constants.LabelTenant] != newObj.Labels[constants.LabelTenant] {
+		err := apierrors.NewInvalid(
+			schema.GroupKind{Group: corev1.GroupName, Kind: "ResourceQuota"},
+			newObj.Name,
+			field.ErrorList{field.Forbidden(
+				field.NewPath("metadata", "labels", constants.LabelTenant),
+				"tenant labels is immutable",
+			)})
+		log.FromContext(ctx).Error(err, "validation error")
+		return err
 	}
 	return nil
 }
@@ -90,7 +111,7 @@ func (r *resourceQuotaValidator) ValidateUpdate(ctx context.Context, oldObj, new
 func (v *resourceQuotaValidator) validate(ctx context.Context, rq *corev1.ResourceQuota) error {
 	logger := log.FromContext(ctx)
 
-	tenantName, ok := rq.Labels["necotiator.cybozu.io/tenant"]
+	tenantName, ok := rq.Labels[constants.LabelTenant]
 	if !ok {
 		return nil
 	}
