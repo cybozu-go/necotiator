@@ -16,7 +16,7 @@ import (
 //go:embed testdata/tenantResourceQuota.yaml
 var tenantResourceQuotaYAML []byte
 
-var _ = Describe("kubectl accurate", func() {
+var _ = Describe("test e2e necotiator", func() {
 	It("should create tenant resource quota", func() {
 		kubectlSafe(tenantResourceQuotaYAML, "apply", "-f", "-")
 	})
