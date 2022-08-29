@@ -93,8 +93,9 @@ func main() {
 	ctx := ctrl.SetupSignalHandler()
 
 	if err = (&controllers.TenantResourceQuotaReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
+		Client:   mgr.GetClient(),
+		Scheme:   mgr.GetScheme(),
+		Recorder: mgr.GetEventRecorderFor("necotiator"),
 	}).SetupWithManager(ctx, mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "TenantResourceQuota")
 		os.Exit(1)
