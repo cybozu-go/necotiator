@@ -21,7 +21,6 @@ webhooks:
     - v1beta1
     operations:
     - CREATE
-    - UPDATE
     resources:
     - tenantresourcequotas
   sideEffects: None

@@ -44,7 +44,7 @@ func SetupTenantResourceQuotaWebhookWithManager(mgr ctrl.Manager) error {
 }
 
 // TODO(user): change verbs to "verbs=create;update;delete" if you want to enable deletion validation.
-//+kubebuilder:webhook:path=/mutate-necotiator-cybozu-io-v1beta1-tenantresourcequota,mutating=true,failurePolicy=fail,sideEffects=None,groups=necotiator.cybozu.io,resources=tenantresourcequotas,verbs=create;update,versions=v1beta1,name=mtenantresourcequota.kb.io,admissionReviewVersions=v1
+//+kubebuilder:webhook:path=/mutate-necotiator-cybozu-io-v1beta1-tenantresourcequota,mutating=true,failurePolicy=fail,sideEffects=None,groups=necotiator.cybozu.io,resources=tenantresourcequotas,verbs=create,versions=v1beta1,name=mtenantresourcequota.kb.io,admissionReviewVersions=v1
 
 var _ admission.CustomDefaulter = &tenantResourceQuotaMutator{}
 
