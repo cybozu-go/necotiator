@@ -17,17 +17,19 @@ limitations under the License.
 package controllers
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
-	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	applycorev1 "k8s.io/client-go/applyconfigurations/core/v1"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -36,6 +38,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
+	"sigs.k8s.io/structured-merge-diff/v4/fieldpath"
 
 	necotiatorv1beta1 "github.com/cybozu-go/necotiator/api/v1beta1"
 	"github.com/cybozu-go/necotiator/pkg/constants"
@@ -236,31 +239,68 @@ func addResourceUsage(usageMap map[corev1.ResourceName]necotiatorv1beta1.Resourc
 }
 
 func (r *TenantResourceQuotaReconciler) reconcileResourceQuota(ctx context.Context, tenantQuota *necotiatorv1beta1.TenantResourceQuota, ns *corev1.Namespace) error {
-	quota := corev1.ResourceQuota{
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace: ns.GetName(),
-			Name:      constants.ResourceQuotaNameDefault,
-			Labels: map[string]string{
-				constants.LabelCreatedBy: constants.CreatedBy,
-				constants.LabelTenant:    tenantQuota.GetName(),
-			},
-		},
-		Spec: corev1.ResourceQuotaSpec{
-			Hard: make(corev1.ResourceList, len(tenantQuota.Spec.Hard)),
-		},
-	}
-	for res := range tenantQuota.Spec.Hard {
-		quota.Spec.Hard[res] = resource.MustParse("0")
+	logger := log.FromContext(ctx)
+
+	var currentQuota corev1.ResourceQuota
+	err := r.Get(ctx, client.ObjectKey{Namespace: ns.GetName(), Name: constants.ResourceQuotaNameDefault}, &currentQuota)
+	if client.IgnoreNotFound(err) != nil {
+		return err
 	}
 
-	err := r.Create(ctx, &quota)
-	if errors.IsAlreadyExists(err) {
-		return nil
+	hard := make(corev1.ResourceList)
+	fieldset := &fieldpath.Set{}
+	for _, managedField := range currentQuota.GetManagedFields() {
+		if managedField.Manager == constants.ControllerName {
+			continue
+		}
+		fs := &fieldpath.Set{}
+		err = fs.FromJSON(bytes.NewReader((managedField.FieldsV1.Raw)))
+		if err != nil {
+			return err
+		}
+		fieldset = fieldset.Union(fs)
 	}
+
+	for resourceName := range tenantQuota.Spec.Hard {
+		if !fieldset.Has(fieldpath.MakePathOrDie("spec", "hard", string(resourceName))) {
+			hard[resourceName] = resource.MustParse("0")
+		}
+	}
+
+	quota := applycorev1.ResourceQuota(constants.ResourceQuotaNameDefault, ns.GetName()).
+		WithLabels(map[string]string{
+			constants.LabelCreatedBy: constants.CreatedBy,
+			constants.LabelTenant:    tenantQuota.GetName(),
+		}).
+		WithSpec(applycorev1.ResourceQuotaSpec().WithHard(hard))
+
+	obj, err := runtime.DefaultUnstructuredConverter.ToUnstructured(quota)
 	if err != nil {
 		return err
 	}
+	patch := &unstructured.Unstructured{
+		Object: obj,
+	}
+
+	currentApplyConfig, err := applycorev1.ExtractResourceQuota(&currentQuota, constants.ControllerName)
+	if err != nil {
+		return err
+	}
+
+	if equality.Semantic.DeepEqual(quota, currentApplyConfig) {
+		return nil
+	}
+
+	logger.Info("Reconciling resource quota", "resource quota", quota)
+	err = r.Patch(ctx, patch, client.Apply, &client.PatchOptions{
+		FieldManager: constants.ControllerName,
+	})
+	if err != nil {
+		return err
+	}
+
 	return nil
+
 }
 
 // SetupWithManager sets up the controller with the Manager.
