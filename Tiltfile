@@ -20,11 +20,11 @@ watch_file('./config/')
 k8s_yaml(kustomize('./config/dev'))
 
 local_resource(
-    'Watch & Compile', "make build", deps=['controllers', 'api', 'hooks', 'main.go'],
+    'Watch & Compile', "make build", deps=['controllers', 'api', 'hooks', 'pkg', 'main.go'],
     ignore=['*/*/zz_generated.deepcopy.go'])
 
 docker_build_with_restart(
-    'controller:latest', '.',
+    'necotiator:dev', '.',
     dockerfile_contents=CONTROLLER_DOCKERFILE,
     entrypoint=['/manager'],
     only=['./bin/manager'],

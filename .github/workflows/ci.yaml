@@ -17,3 +17,27 @@ jobs:
       with:
         go-version: ${{ env.go-version }}
     - run: make test
+
+  e2e:
+    name: End-to-End Tests
+    runs-on: ubuntu-20.04
+    steps:
+    - uses: actions/checkout@v3
+    - uses: actions/setup-go@v3
+      with:
+        go-version: ${{ env.go-version }}
+    - uses: aquaproj/aqua-installer@c553e04154f1f3b7e5eb35da058db3bb782bee8a #v1.1.2
+      with:
+        aqua_version: v1.19.2
+    - run: make start
+      working-directory: e2e
+    - run: make test
+      working-directory: e2e
+    - run: make logs
+      working-directory: e2e
+      if: always()
+    - uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: logs.tar.gz
+        path: e2e/logs.tar.gz

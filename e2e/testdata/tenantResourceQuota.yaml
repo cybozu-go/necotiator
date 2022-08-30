@@ -1,0 +1,11 @@
+apiVersion: necotiator.cybozu.io/v1beta1
+kind: TenantResourceQuota
+metadata:
+  name: test-tenant
+spec:
+  namespaceSelector:
+    matchLabels:
+      team: neco
+  hard:
+    requests.cpu: "100m"
+    requests.memory: "100Mi"
