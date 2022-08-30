@@ -9,4 +9,4 @@ spec:
       team: neco
   hard:
     requests.cpu: "100m"
-    requests.memory: "100m"
+    requests.memory: "100Mi"
