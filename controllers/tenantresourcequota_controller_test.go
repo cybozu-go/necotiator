@@ -10,10 +10,13 @@ import (
 	. "github.com/onsi/gomega"
 	. "github.com/onsi/gomega/gstruct"
 	corev1 "k8s.io/api/core/v1"
-	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
+	applycorev1 "k8s.io/client-go/applyconfigurations/core/v1"
+	"k8s.io/utils/pointer"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -53,7 +56,7 @@ func newTenantResourceQuota(name, teamName string) *necotiatorv1beta1.TenantReso
 			},
 		},
 		Spec: necotiatorv1beta1.TenantResourceQuotaSpec{
-			Hard: v1.ResourceList{
+			Hard: corev1.ResourceList{
 				"limits.cpu": resource.MustParse("100m"),
 			},
 			NamespaceSelector: &metav1.LabelSelector{
@@ -385,6 +388,242 @@ var _ = Describe("Test TenantResourceQuotaController", func() {
 			g.Expect(err).ShouldNot(HaveOccurred())
 
 			g.Expect(quota.Labels).Should(BeEmpty())
+		}).Should(Succeed())
+	})
+
+	type testCase struct {
+		initialTenantQuota  corev1.ResourceList
+		generatedQuota      corev1.ResourceList
+		modifiedQuota       corev1.ResourceList
+		modifiedTenantQuota corev1.ResourceList
+		updatedQuota        corev1.ResourceList
+		SSA                 bool
+	}
+
+	DescribeTable("Tenant Resource Quota Editor Test", func(testCase testCase) {
+		namespaceName := newTestObjectName()
+		teamName := newTestObjectName()
+		namespace := newNamespace(namespaceName, teamName)
+		err := k8sClient.Create(ctx, namespace)
+		Expect(err).ShouldNot(HaveOccurred())
+
+		tenantResourceQuotaName := newTestObjectName()
+		tenantResourceQuota := newTenantResourceQuota(tenantResourceQuotaName, teamName)
+		tenantResourceQuota.Spec.Hard = testCase.initialTenantQuota
+
+		err = k8sClient.Create(ctx, tenantResourceQuota)
+		Expect(err).ShouldNot(HaveOccurred())
+
+		var quota corev1.ResourceQuota
+		Eventually(func(g Gomega) {
+			err = k8sClient.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: constants.ResourceQuotaNameDefault}, &quota)
+			g.Expect(err).ShouldNot(HaveOccurred())
+
+			g.Expect(quota.Labels).Should(MatchAllKeys(Keys{
+				constants.LabelCreatedBy: Equal(constants.CreatedBy),
+				constants.LabelTenant:    Equal(tenantResourceQuotaName),
+			}))
+
+			g.Expect(quota.Spec.Hard).Should(SemanticEqual(testCase.generatedQuota))
+		}).Should(Succeed())
+
+		if testCase.SSA {
+			quotaApply := applycorev1.ResourceQuota(quota.GetName(), quota.GetNamespace()).
+				WithLabels(quota.GetLabels()).
+				WithSpec(applycorev1.ResourceQuotaSpec().WithHard(testCase.modifiedQuota))
+
+			obj, err := runtime.DefaultUnstructuredConverter.ToUnstructured(quotaApply)
+			Expect(err).ShouldNot(HaveOccurred())
+			patch := &unstructured.Unstructured{
+				Object: obj,
+			}
+
+			err = k8sClient.Patch(ctx, patch, client.Apply, &client.PatchOptions{
+				FieldManager: "kubectl",
+				Force:        pointer.Bool(true),
+			})
+			Expect(err).ShouldNot(HaveOccurred())
+		} else {
+			quota.Spec.Hard = testCase.modifiedQuota
+			err = k8sClient.Update(ctx, &quota)
+			Expect(err).ShouldNot(HaveOccurred())
+		}
+
+		tenantResourceQuota.Spec.Hard = testCase.modifiedTenantQuota
+		err = k8sClient.Update(ctx, tenantResourceQuota)
+		Expect(err).ShouldNot(HaveOccurred())
+
+		Eventually(func(g Gomega) {
+			quota = corev1.ResourceQuota{}
+			err = k8sClient.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: constants.ResourceQuotaNameDefault}, &quota)
+			g.Expect(err).ShouldNot(HaveOccurred())
+
+			g.Expect(quota.Labels).Should(MatchAllKeys(Keys{
+				constants.LabelCreatedBy: Equal(constants.CreatedBy),
+				constants.LabelTenant:    Equal(tenantResourceQuotaName),
+			}))
+
+			g.Expect(quota.Spec.Hard).Should(SemanticEqual(testCase.updatedQuota))
+		}).Should(Succeed())
+
+	}, Entry("should add new resource to resource quota after adding tenant resource quota resource and not overwrite current resource quota by clinet side apply", testCase{
+		initialTenantQuota: corev1.ResourceList{
+			corev1.ResourceName("limits.cpu"):   resource.MustParse("100m"),
+			corev1.ResourceName("requests.cpu"): resource.MustParse("100m"),
+		},
+		generatedQuota: corev1.ResourceList{
+			corev1.ResourceName("limits.cpu"):   resource.MustParse("0"),
+			corev1.ResourceName("requests.cpu"): resource.MustParse("0"),
+		},
+		modifiedQuota: corev1.ResourceList{
+			corev1.ResourceName("limits.cpu"):   resource.MustParse("50m"),
+			corev1.ResourceName("requests.cpu"): resource.MustParse("0"),
+		},
+		modifiedTenantQuota: corev1.ResourceList{
+			corev1.ResourceName("limits.cpu"):    resource.MustParse("100m"),
+			corev1.ResourceName("requests.cpu"):  resource.MustParse("100m"),
+			corev1.ResourceName("limits.memory"): resource.MustParse("100Mi"),
+		},
+		updatedQuota: corev1.ResourceList{
+			corev1.ResourceName("limits.cpu"):    resource.MustParse("50m"),
+			corev1.ResourceName("requests.cpu"):  resource.MustParse("0"),
+			corev1.ResourceName("limits.memory"): resource.MustParse("0"),
+		},
+		SSA: false,
+	}),
+		Entry("should delete old resource quota not edited by user after deleting tenant resource quota tenant resource quota resource by client side apply", testCase{
+			initialTenantQuota: corev1.ResourceList{
+				corev1.ResourceName("limits.cpu"):      resource.MustParse("100m"),
+				corev1.ResourceName("requests.cpu"):    resource.MustParse("100m"),
+				corev1.ResourceName("requests.memory"): resource.MustParse("500Mi"),
+			},
+			generatedQuota: corev1.ResourceList{
+				corev1.ResourceName("limits.cpu"):      resource.MustParse("0"),
+				corev1.ResourceName("requests.cpu"):    resource.MustParse("0"),
+				corev1.ResourceName("requests.memory"): resource.MustParse("0"),
+			},
+			modifiedQuota: corev1.ResourceList{
+				corev1.ResourceName("limits.cpu"):      resource.MustParse("50m"),
+				corev1.ResourceName("requests.cpu"):    resource.MustParse("0"),
+				corev1.ResourceName("requests.memory"): resource.MustParse("0"),
+			},
+			modifiedTenantQuota: corev1.ResourceList{
+				corev1.ResourceName("requests.cpu"): resource.MustParse("0"),
+			},
+			updatedQuota: corev1.ResourceList{
+				corev1.ResourceName("limits.cpu"):   resource.MustParse("50m"),
+				corev1.ResourceName("requests.cpu"): resource.MustParse("0"),
+			},
+			SSA: false,
+		}),
+		Entry("should add new resource to resource quota after adding tenant resource quota resource and not overwrite current resource quota by server side apply", testCase{
+			initialTenantQuota: corev1.ResourceList{
+				corev1.ResourceName("limits.cpu"):   resource.MustParse("100m"),
+				corev1.ResourceName("requests.cpu"): resource.MustParse("100m"),
+			},
+			generatedQuota: corev1.ResourceList{
+				corev1.ResourceName("limits.cpu"):   resource.MustParse("0"),
+				corev1.ResourceName("requests.cpu"): resource.MustParse("0"),
+			},
+			modifiedQuota: corev1.ResourceList{
+				corev1.ResourceName("limits.cpu"): resource.MustParse("50m"),
+			},
+			modifiedTenantQuota: corev1.ResourceList{
+				corev1.ResourceName("limits.cpu"):    resource.MustParse("100m"),
+				corev1.ResourceName("requests.cpu"):  resource.MustParse("100m"),
+				corev1.ResourceName("limits.memory"): resource.MustParse("100Mi"),
+			},
+			updatedQuota: corev1.ResourceList{
+				corev1.ResourceName("limits.cpu"):    resource.MustParse("50m"),
+				corev1.ResourceName("requests.cpu"):  resource.MustParse("0"),
+				corev1.ResourceName("limits.memory"): resource.MustParse("0"),
+			},
+			SSA: true,
+		}),
+		Entry("should delete old resource quota not edited by user after deleting tenant resource quota tenant resource quota resource by server side apply ", testCase{
+			initialTenantQuota: corev1.ResourceList{
+				corev1.ResourceName("limits.cpu"):      resource.MustParse("100m"),
+				corev1.ResourceName("requests.cpu"):    resource.MustParse("100m"),
+				corev1.ResourceName("requests.memory"): resource.MustParse("500Mi"),
+			},
+			generatedQuota: corev1.ResourceList{
+				corev1.ResourceName("limits.cpu"):      resource.MustParse("0"),
+				corev1.ResourceName("requests.cpu"):    resource.MustParse("0"),
+				corev1.ResourceName("requests.memory"): resource.MustParse("0"),
+			},
+			modifiedQuota: corev1.ResourceList{
+				corev1.ResourceName("limits.cpu"): resource.MustParse("50m"),
+			},
+			modifiedTenantQuota: corev1.ResourceList{
+				corev1.ResourceName("requests.cpu"): resource.MustParse("0"),
+			},
+			updatedQuota: corev1.ResourceList{
+				corev1.ResourceName("limits.cpu"):   resource.MustParse("50m"),
+				corev1.ResourceName("requests.cpu"): resource.MustParse("0"),
+			},
+			SSA: true,
+		}),
+	)
+
+	It("should change resource quota label on updating tenant resource quota label selector", func() {
+		namespaceName := newTestObjectName()
+		teamName := newTestObjectName()
+		namespace := newNamespace(namespaceName, teamName)
+		err := k8sClient.Create(ctx, namespace)
+		Expect(err).ShouldNot(HaveOccurred())
+
+		tenantResourceQuotaName := newTestObjectName()
+		tenantResourceQuota := newTenantResourceQuota(tenantResourceQuotaName, teamName)
+		err = k8sClient.Create(ctx, tenantResourceQuota)
+		Expect(err).ShouldNot(HaveOccurred())
+
+		var quota corev1.ResourceQuota
+		Eventually(func(g Gomega) {
+			err = k8sClient.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: constants.ResourceQuotaNameDefault}, &quota)
+			g.Expect(err).ShouldNot(HaveOccurred())
+
+			g.Expect(quota.Labels).Should(MatchAllKeys(Keys{
+				constants.LabelCreatedBy: Equal(constants.CreatedBy),
+				constants.LabelTenant:    Equal(tenantResourceQuotaName),
+			}))
+		}).Should(Succeed())
+
+		migrationNameSpaceName := newTestObjectName()
+		migrationTeamName := newTestObjectName()
+		migrationNameSpace := newNamespace(migrationNameSpaceName, migrationTeamName)
+		err = k8sClient.Create(ctx, migrationNameSpace)
+		Expect(err).ShouldNot(HaveOccurred())
+
+		migrationTenantResourceQuotaName := newTestObjectName()
+		migrationTenantResourceQuota := newTenantResourceQuota(migrationTenantResourceQuotaName, migrationTeamName)
+		err = k8sClient.Create(ctx, migrationTenantResourceQuota)
+		Expect(err).ShouldNot(HaveOccurred())
+
+		Eventually(func(g Gomega) {
+			var migrateQuota corev1.ResourceQuota
+			err = k8sClient.Get(ctx, client.ObjectKey{Namespace: migrationNameSpaceName, Name: constants.ResourceQuotaNameDefault}, &migrateQuota)
+			g.Expect(err).ShouldNot(HaveOccurred())
+
+			g.Expect(migrateQuota.Labels).Should(MatchAllKeys(Keys{
+				constants.LabelCreatedBy: Equal(constants.CreatedBy),
+				constants.LabelTenant:    Equal(migrationTenantResourceQuotaName),
+			}))
+		}).Should(Succeed())
+
+		migrationTenantResourceQuota.Spec.NamespaceSelector = &metav1.LabelSelector{
+			MatchLabels: map[string]string{
+				"team": teamName,
+			},
+		}
+		err = k8sClient.Update(ctx, migrationTenantResourceQuota)
+		Expect(err).ShouldNot(HaveOccurred())
+
+		Eventually(func(g Gomega) {
+			var migrateQuota corev1.ResourceQuota
+			err = k8sClient.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: constants.ResourceQuotaNameDefault}, &migrateQuota)
+			g.Expect(err).ShouldNot(HaveOccurred())
+
+			g.Expect(quota.Labels).Should(Equal(migrateQuota.Labels))
 		}).Should(Succeed())
 	})
 
