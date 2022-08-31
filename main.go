@@ -101,6 +101,10 @@ func main() {
 		setupLog.Error(err, "unable to create controller", "controller", "TenantResourceQuota")
 		os.Exit(1)
 	}
+	if err = controllers.SetupMetrics(ctx, mgr.GetClient()); err != nil {
+		setupLog.Error(err, "unable to setup metrics")
+		os.Exit(1)
+	}
 	if err = hooks.SetupResourceQuotaWebhookWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create webhook", "webhook", "ResourceQuota")
 		os.Exit(1)
