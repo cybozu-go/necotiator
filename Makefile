@@ -54,9 +54,10 @@ fmt: ## Run go fmt against code.
 vet: ## Run go vet against code.
 	go vet ./...
 
+TARGET ?= envtest
 .PHONY: test
 test: manifests generate fmt vet envtest ## Run tests.
-	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path)" go test -v -count 1 ./... -coverprofile cover.out -ginkgo.progress -ginkgo.v -ginkgo.fail-fast -ginkgo.label-filter=!e2e
+	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path)" go test -v -count 1 ./... -coverprofile cover.out -ginkgo.progress -ginkgo.v -ginkgo.fail-fast -ginkgo.label-filter=$(TARGET)
 
 ##@ Build
 

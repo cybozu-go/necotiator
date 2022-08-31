@@ -47,7 +47,7 @@ var scheme = runtime.NewScheme()
 func TestAPIs(t *testing.T) {
 	RegisterFailHandler(Fail)
 
-	RunSpecs(t, "Controller Suite")
+	RunSpecs(t, "Controller Suite", Label("envtest", "controller"))
 }
 
 var _ = BeforeSuite(func() {
