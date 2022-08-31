@@ -175,7 +175,7 @@ var _ = Describe("Test tenantResourceQuotaCollector", func() {
 		Expect(metrics).ShouldNot(HaveKey(fmt.Sprintf("necotiator_tenantresourcequota{resource=limits.cpu,tenantresourcequota=%s,type=used}", name)))
 	})
 
-	It("should not export necotiator_tenantresourcequota for resource removed", func() {
+	It("should not export necotiator_tenantresourcequota for removed resource configurations", func() {
 		name := newTestObjectName()
 		quota := &necotiatorv1beta1.TenantResourceQuota{
 			ObjectMeta: metav1.ObjectMeta{
