@@ -30,6 +30,7 @@ func (c *tenantResourceQuotaCollector) Collect(ch chan<- prometheus.Metric) {
 	var quotaList necotiatorv1beta1.TenantResourceQuotaList
 	if err := c.List(c.ctx, &quotaList); err != nil {
 		log.FromContext(c.ctx).Error(err, "Unable to list tenant resource quota for collecting metrics")
+		return
 	}
 	for _, quota := range quotaList.Items {
 		for resourceName, v := range quota.Spec.Hard {
