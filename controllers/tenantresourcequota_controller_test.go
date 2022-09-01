@@ -613,42 +613,27 @@ var _ = Describe("Test TenantResourceQuotaController", func() {
 			}))
 		}).Should(Succeed())
 
-		migrationNameSpaceName := newTestObjectName()
-		migrationTeamName := newTestObjectName()
-		migrationNameSpace := newNamespace(migrationNameSpaceName, migrationTeamName)
-		err = k8sClient.Create(ctx, migrationNameSpace)
-		Expect(err).ShouldNot(HaveOccurred())
-
 		migrationTenantResourceQuotaName := newTestObjectName()
+		migrationTeamName := newTestObjectName()
 		migrationTenantResourceQuota := newTenantResourceQuota(migrationTenantResourceQuotaName, migrationTeamName)
 		err = k8sClient.Create(ctx, migrationTenantResourceQuota)
 		Expect(err).ShouldNot(HaveOccurred())
 
-		Eventually(func(g Gomega) {
-			var migrateQuota corev1.ResourceQuota
-			err = k8sClient.Get(ctx, client.ObjectKey{Namespace: migrationNameSpaceName, Name: constants.ResourceQuotaNameDefault}, &migrateQuota)
-			g.Expect(err).ShouldNot(HaveOccurred())
-
-			g.Expect(migrateQuota.Labels).Should(MatchAllKeys(Keys{
-				constants.LabelCreatedBy: Equal(constants.CreatedBy),
-				constants.LabelTenant:    Equal(migrationTenantResourceQuotaName),
-			}))
-		}).Should(Succeed())
-
-		migrationTenantResourceQuota.Spec.NamespaceSelector = &metav1.LabelSelector{
-			MatchLabels: map[string]string{
-				"team": teamName,
-			},
+		namespace.Labels = map[string]string{
+			"team": migrationTeamName,
 		}
-		err = k8sClient.Update(ctx, migrationTenantResourceQuota)
+		err = k8sClient.Update(ctx, namespace)
 		Expect(err).ShouldNot(HaveOccurred())
 
 		Eventually(func(g Gomega) {
-			var migrateQuota corev1.ResourceQuota
-			err = k8sClient.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: constants.ResourceQuotaNameDefault}, &migrateQuota)
+			var quota corev1.ResourceQuota
+			err = k8sClient.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: constants.ResourceQuotaNameDefault}, &quota)
 			g.Expect(err).ShouldNot(HaveOccurred())
 
-			g.Expect(quota.Labels).Should(Equal(migrateQuota.Labels))
+			g.Expect(quota.Labels).Should(MatchAllKeys(Keys{
+				constants.LabelCreatedBy: Equal(constants.CreatedBy),
+				constants.LabelTenant:    Equal(migrationTenantResourceQuotaName),
+			}))
 		}).Should(Succeed())
 	})
 
