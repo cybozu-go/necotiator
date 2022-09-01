@@ -247,6 +247,11 @@ func (r *TenantResourceQuotaReconciler) reconcileResourceQuota(ctx context.Conte
 		return err
 	}
 
+	tenantLabel := currentQuota.Labels[constants.LabelTenant]
+	if tenantLabel != "" && tenantLabel != tenantQuota.Name {
+		return nil
+	}
+
 	hard := make(corev1.ResourceList)
 	fieldset := &fieldpath.Set{}
 	for _, managedField := range currentQuota.GetManagedFields() {
@@ -335,16 +340,50 @@ func (r *TenantResourceQuotaReconciler) SetupWithManager(ctx context.Context, mg
 	}
 	mapResourceQuota := func(o client.Object) []reconcile.Request {
 		tenant := o.GetLabels()[constants.LabelTenant]
-		if tenant == "" {
+		if tenant != "" {
+			return []reconcile.Request{
+				{
+					NamespacedName: types.NamespacedName{
+						Name: tenant,
+					},
+				},
+			}
+		}
+
+		if o.GetName() != constants.ResourceQuotaNameDefault {
 			return nil
 		}
-		return []reconcile.Request{
-			{
-				NamespacedName: types.NamespacedName{
-					Name: tenant,
-				},
-			},
+
+		var quotas necotiatorv1beta1.TenantResourceQuotaList
+		err := mgr.GetClient().List(ctx, &quotas)
+		if err != nil {
+			logger.Error(err, "watch resource quota")
+			return nil
 		}
+
+		var ns corev1.Namespace
+		if err := mgr.GetClient().Get(ctx, client.ObjectKey{Name: o.GetNamespace()}, &ns); err != nil {
+			logger.Error(err, "watch resource quota")
+			return nil
+		}
+
+		var reqs []reconcile.Request
+		for _, quota := range quotas.Items {
+			selector, err := metav1.LabelSelectorAsSelector(quota.Spec.NamespaceSelector)
+			if err != nil {
+				logger.Error(err, "parsing tenant resource quota selector")
+				continue
+			}
+			if selector.Matches(labels.Set(ns.Labels)) {
+				reqs = append(reqs, reconcile.Request{
+					NamespacedName: types.NamespacedName{
+						Name: quota.GetName(),
+					},
+				})
+			}
+		}
+
+		return reqs
 	}
 
 	return ctrl.NewControllerManagedBy(mgr).
