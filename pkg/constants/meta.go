@@ -18,7 +18,12 @@ const (
 	ResourceQuotaNameDefault = "default"
 )
 
-// Event Recoder Name
+// Event Recorder Name
 const (
 	EventRecorderName = "necotiator"
+)
+
+// Controller Name
+const (
+	ControllerName = "necotiator-controller"
 )
