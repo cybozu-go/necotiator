@@ -444,7 +444,9 @@ var _ = Describe("Test TenantResourceQuotaController", func() {
 			})
 			Expect(err).ShouldNot(HaveOccurred())
 		} else {
-			quota.Spec.Hard = testCase.modifiedQuota
+			for resourceName, quantity := range testCase.modifiedQuota {
+				quota.Spec.Hard[resourceName] = quantity
+			}
 			err = k8sClient.Update(ctx, &quota)
 			Expect(err).ShouldNot(HaveOccurred())
 		}
@@ -463,19 +465,18 @@ var _ = Describe("Test TenantResourceQuotaController", func() {
 			}).Should(Succeed())
 
 			err = k8sClient.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: constants.ResourceQuotaNameDefault}, &quota)
-			fmt.Println("466here", quota.ResourceVersion)
 			Expect(err).ShouldNot(HaveOccurred())
-			quota.Spec.Hard = testCase.modifiedQuota
+			for resourceName, quantity := range testCase.modifiedQuota {
+				quota.Spec.Hard[resourceName] = quantity
+			}
 			err = k8sClient.Update(ctx, &quota)
-			fmt.Println("470updatehere", quota.ResourceVersion, quota)
 			Expect(err).ShouldNot(HaveOccurred())
 			Consistently(func(g Gomega) {
 				var quotaAfter corev1.ResourceQuota
 				err = k8sClient.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: constants.ResourceQuotaNameDefault}, &quotaAfter)
 				g.Expect(err).ShouldNot(HaveOccurred())
 
-				fmt.Println("477get here", quotaAfter)
-				g.Expect(quota.ResourceVersion).Should(Equal(quotaAfter.ResourceVersion))
+				g.Expect(quotaAfter).Should(SemanticEqual(quota))
 			}).Should(Succeed())
 		}
 
@@ -492,31 +493,31 @@ var _ = Describe("Test TenantResourceQuotaController", func() {
 			g.Expect(quota.Spec.Hard).Should(SemanticEqual(testCase.updatedQuota))
 		}).Should(Succeed())
 
-	}, Entry("should add new resource to resource quota after adding tenant resource quota resource and not overwrite current resource quota by clinet side apply", testCase{
-		initialTenantQuota: corev1.ResourceList{
-			corev1.ResourceName("limits.cpu"):   resource.MustParse("100m"),
-			corev1.ResourceName("requests.cpu"): resource.MustParse("100m"),
-		},
-		generatedQuota: corev1.ResourceList{
-			corev1.ResourceName("limits.cpu"):   resource.MustParse("0"),
-			corev1.ResourceName("requests.cpu"): resource.MustParse("0"),
-		},
-		modifiedQuota: corev1.ResourceList{
-			corev1.ResourceName("limits.cpu"):   resource.MustParse("50m"),
-			corev1.ResourceName("requests.cpu"): resource.MustParse("0"),
-		},
-		modifiedTenantQuota: corev1.ResourceList{
-			corev1.ResourceName("limits.cpu"):    resource.MustParse("100m"),
-			corev1.ResourceName("requests.cpu"):  resource.MustParse("100m"),
-			corev1.ResourceName("limits.memory"): resource.MustParse("100Mi"),
-		},
-		updatedQuota: corev1.ResourceList{
-			corev1.ResourceName("limits.cpu"):    resource.MustParse("50m"),
-			corev1.ResourceName("requests.cpu"):  resource.MustParse("0"),
-			corev1.ResourceName("limits.memory"): resource.MustParse("0"),
-		},
-		SSA: false,
-	}),
+	},
+		Entry("should add new resource to resource quota after adding tenant resource quota resource and not overwrite current resource quota by client side apply", testCase{
+			initialTenantQuota: corev1.ResourceList{
+				corev1.ResourceName("limits.cpu"):   resource.MustParse("100m"),
+				corev1.ResourceName("requests.cpu"): resource.MustParse("100m"),
+			},
+			generatedQuota: corev1.ResourceList{
+				corev1.ResourceName("limits.cpu"):   resource.MustParse("0"),
+				corev1.ResourceName("requests.cpu"): resource.MustParse("0"),
+			},
+			modifiedQuota: corev1.ResourceList{
+				corev1.ResourceName("limits.cpu"): resource.MustParse("50m"),
+			},
+			modifiedTenantQuota: corev1.ResourceList{
+				corev1.ResourceName("limits.cpu"):    resource.MustParse("100m"),
+				corev1.ResourceName("requests.cpu"):  resource.MustParse("100m"),
+				corev1.ResourceName("limits.memory"): resource.MustParse("100Mi"),
+			},
+			updatedQuota: corev1.ResourceList{
+				corev1.ResourceName("limits.cpu"):    resource.MustParse("50m"),
+				corev1.ResourceName("requests.cpu"):  resource.MustParse("0"),
+				corev1.ResourceName("limits.memory"): resource.MustParse("0"),
+			},
+			SSA: false,
+		}),
 		Entry("should delete old resource quota not edited by user after deleting tenant resource quota tenant resource quota resource by client side apply", testCase{
 			initialTenantQuota: corev1.ResourceList{
 				corev1.ResourceName("limits.cpu"):      resource.MustParse("100m"),
@@ -529,9 +530,7 @@ var _ = Describe("Test TenantResourceQuotaController", func() {
 				corev1.ResourceName("requests.memory"): resource.MustParse("0"),
 			},
 			modifiedQuota: corev1.ResourceList{
-				corev1.ResourceName("limits.cpu"):      resource.MustParse("50m"),
-				corev1.ResourceName("requests.cpu"):    resource.MustParse("0"),
-				corev1.ResourceName("requests.memory"): resource.MustParse("0"),
+				corev1.ResourceName("limits.cpu"): resource.MustParse("50m"),
 			},
 			modifiedTenantQuota: corev1.ResourceList{
 				corev1.ResourceName("requests.cpu"): resource.MustParse("0"),
