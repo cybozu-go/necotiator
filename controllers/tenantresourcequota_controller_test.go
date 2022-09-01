@@ -453,6 +453,32 @@ var _ = Describe("Test TenantResourceQuotaController", func() {
 		err = k8sClient.Update(ctx, tenantResourceQuota)
 		Expect(err).ShouldNot(HaveOccurred())
 
+		if !testCase.SSA {
+			Eventually(func(g Gomega) {
+				var quotaAfter corev1.ResourceQuota
+				err = k8sClient.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: constants.ResourceQuotaNameDefault}, &quotaAfter)
+				g.Expect(err).ShouldNot(HaveOccurred())
+
+				g.Expect(quota.ResourceVersion).ShouldNot(Equal(quotaAfter.ResourceVersion))
+			}).Should(Succeed())
+
+			err = k8sClient.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: constants.ResourceQuotaNameDefault}, &quota)
+			fmt.Println("466here", quota.ResourceVersion)
+			Expect(err).ShouldNot(HaveOccurred())
+			quota.Spec.Hard = testCase.modifiedQuota
+			err = k8sClient.Update(ctx, &quota)
+			fmt.Println("470updatehere", quota.ResourceVersion, quota)
+			Expect(err).ShouldNot(HaveOccurred())
+			Consistently(func(g Gomega) {
+				var quotaAfter corev1.ResourceQuota
+				err = k8sClient.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: constants.ResourceQuotaNameDefault}, &quotaAfter)
+				g.Expect(err).ShouldNot(HaveOccurred())
+
+				fmt.Println("477get here", quotaAfter)
+				g.Expect(quota.ResourceVersion).Should(Equal(quotaAfter.ResourceVersion))
+			}).Should(Succeed())
+		}
+
 		Eventually(func(g Gomega) {
 			quota = corev1.ResourceQuota{}
 			err = k8sClient.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: constants.ResourceQuotaNameDefault}, &quota)
