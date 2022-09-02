@@ -81,8 +81,9 @@ var _ = Describe("Test TenantResourceQuotaController", func() {
 		Expect(err).ShouldNot(HaveOccurred())
 
 		reconciler := &TenantResourceQuotaReconciler{
-			Client: mgr.GetClient(),
-			Scheme: scheme,
+			Client:   mgr.GetClient(),
+			Scheme:   scheme,
+			Recorder: mgr.GetEventRecorderFor(constants.EventRecorderName),
 		}
 		err = reconciler.SetupWithManager(ctx, mgr)
 		Expect(err).ShouldNot(HaveOccurred())
