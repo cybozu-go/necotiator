@@ -89,7 +89,7 @@ var _ = BeforeSuite(func() {
 	})
 	Expect(err).NotTo(HaveOccurred())
 
-	err = SetupResourceQuotaWebhookWithManager(mgr)
+	err = SetupResourceQuotaWebhookWithManager(mgr, "necotiator-system", "necotiator-controller-manager")
 	Expect(err).NotTo(HaveOccurred())
 
 	err = SetupTenantResourceQuotaWebhookWithManager(mgr)

@@ -9,7 +9,7 @@ spec:
       securityContext: null
       containers:
         - command:
-            - /manager
+            - /necotiator-controller
           args: null
           name: manager
           securityContext: null

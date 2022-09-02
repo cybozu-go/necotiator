@@ -63,11 +63,11 @@ test: manifests generate fmt vet envtest ## Run tests.
 
 .PHONY: build
 build: generate fmt ## Build manager binary.
-	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o bin/manager main.go
+	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o bin/necotiator-controller cmd/necotiator-controller/main.go
 
 .PHONY: run
 run: manifests generate fmt vet ## Run a controller from your host.
-	go run ./main.go
+	go run cmd/necotiator-controller/main.go
 
 .PHONY: docker-build
 docker-build: test ## Build docker image with the manager.
