@@ -40,13 +40,15 @@ import (
 var resourcequotalog = logf.Log.WithName("resourcequota-resource")
 
 type resourceQuotaValidator struct {
-	client client.Client
+	client         client.Client
+	namespace      string
+	serviceAccount string
 }
 
-func SetupResourceQuotaWebhookWithManager(mgr ctrl.Manager) error {
+func SetupResourceQuotaWebhookWithManager(mgr ctrl.Manager, ns, sa string) error {
 	return ctrl.NewWebhookManagedBy(mgr).
 		For(&corev1.ResourceQuota{}).
-		WithValidator(&resourceQuotaValidator{mgr.GetClient()}).
+		WithValidator(&resourceQuotaValidator{mgr.GetClient(), ns, sa}).
 		Complete()
 }
 
@@ -90,7 +92,7 @@ func (r *resourceQuotaValidator) validateLabelChange(ctx context.Context, oldObj
 	if err != nil {
 		return err
 	}
-	if request.UserInfo.Username == "system:serviceaccount:necotiator-system:necotiator-controller-manager" {
+	if request.UserInfo.Username == fmt.Sprintf("system:serviceaccount:%s:%s", r.namespace, r.serviceAccount) {
 		return nil
 	}
 

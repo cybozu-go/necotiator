@@ -2,8 +2,8 @@ load('ext://restart_process', 'docker_build_with_restart')
 
 CONTROLLER_DOCKERFILE = '''FROM golang:alpine
 WORKDIR /
-COPY ./bin/manager /
-CMD ["/manager"]
+COPY ./bin/necotiator-controller /
+CMD ["/necotiator-controller"]
 '''
 
 # Generate manifests and go files
@@ -20,16 +20,16 @@ watch_file('./config/')
 k8s_yaml(kustomize('./config/dev'))
 
 local_resource(
-    'Watch & Compile', "make build", deps=['controllers', 'api', 'hooks', 'pkg', 'main.go'],
+    'Watch & Compile', "make build", deps=['controllers', 'api', 'hooks', 'pkg', 'cmd', 'version.go'],
     ignore=['*/*/zz_generated.deepcopy.go'])
 
 docker_build_with_restart(
     'necotiator:dev', '.',
     dockerfile_contents=CONTROLLER_DOCKERFILE,
-    entrypoint=['/manager'],
-    only=['./bin/manager'],
+    entrypoint=['/necotiator-controller'],
+    only=['./bin/necotiator-controller'],
     live_update=[
-        sync('./bin/manager', '/manager'),
+        sync('./bin/necotiator-controller', '/necotiator-controller'),
     ]
 )
 
