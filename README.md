@@ -3,10 +3,14 @@
 [![PkgGoDev](https://pkg.go.dev/badge/github.com/cybozu-go/necotiator?tab=overview)](https://pkg.go.dev/github.com/cybozu-go/necotiator?tab=overview)
 [![Go Report Card](https://goreportcard.com/badge/github.com/cybozu-go/necotiator)](https://goreportcard.com/report/github.com/cybozu-go/necotiator)
 
-Template repository for Neco
-============================
+# Necotiator
 
-**Project Status**: Initial development
+Necotiator is a Kubernetes controller for soft multi-tenancy environments.
+
+Necotiator provides TenantResourceQuota CRD, that allows us to limit tenant teams' resource usage.
+Each tenant team can have multiple namespaces and set ResourceQuota on their own within that tenant's limit.
+
+**Project Status**: Alpha
 
 ## Documentation
 
